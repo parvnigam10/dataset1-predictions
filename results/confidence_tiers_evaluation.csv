@@ -1,0 +1,15 @@
+confidence_threshold,matches,coverage_pct,accuracy_pct,Evaluation_Set
+0.4,1515,78.95,57.36,2023 Benchmark Test
+0.45,1211,63.11,60.28,2023 Benchmark Test
+0.5,935,48.72,62.99,2023 Benchmark Test
+0.55,752,39.19,65.43,2023 Benchmark Test
+0.6,470,24.49,71.91,2023 Benchmark Test
+0.65,354,18.45,75.42,2023 Benchmark Test
+0.7,224,11.67,81.25,2023 Benchmark Test
+0.4,3634,80.72,57.68,2024-2026 Holdout
+0.45,2858,63.48,61.09,2024-2026 Holdout
+0.5,2200,48.87,64.86,2024-2026 Holdout
+0.55,1707,37.92,67.25,2024-2026 Holdout
+0.6,1159,25.74,72.56,2024-2026 Holdout
+0.65,890,19.77,76.4,2024-2026 Holdout
+0.7,563,12.51,78.51,2024-2026 Holdout
