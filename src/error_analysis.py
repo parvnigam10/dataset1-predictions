@@ -40,10 +40,14 @@ def run_error_analysis():
     xgb_clf.fit(X_train, y_train)
     hgb = get_model('hist_gbm')
     hgb.fit(X_train, y_train)
+    rf = get_model('random_forest')
+    rf.fit(X_train, y_train)
+    lr = get_model('logistic_regression', balanced=True)
+    lr.fit(X_train, y_train)
     
     ensemble = SoftVotingEnsemble(
-        models=[et, xgb_clf, hgb],
-        weights=[0.40, 0.35, 0.25]
+        models=[et, xgb_clf, hgb, rf, lr],
+        weights=[0.35, 0.20, 0.20, 0.15, 0.10]
     )
     
     test_df = test_df.copy()
