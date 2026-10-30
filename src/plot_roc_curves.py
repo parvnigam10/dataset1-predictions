@@ -24,12 +24,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import label_binarize
 from sklearn.metrics import roc_curve, auc
-from sklearn.impute import SimpleImputer
-from imblearn.over_sampling import SMOTE
 
-from src.data_loader import create_chronological_splits
-from src.features import compute_all_features, FEATURE_GROUPS
-from src.models import get_model, SoftVotingEnsemble
+from src.artifacts import RESULTS, PROB_COLUMNS, load_predictions, load_metadata, holdout_label
 
 CLASS_NAMES = ['Home Win (H)', 'Draw (D)', 'Away Win (A)']
 CLASS_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c']
@@ -107,218 +103,57 @@ def plot_single_model_roc(fpr, tpr, roc_auc, title, filepath):
 
 
 def generate_all_roc_curves():
-    print("=" * 80)
-    print("GENERATING COMPREHENSIVE MULTI-CLASS ROC CURVES & AUC METRICS")
-    print("=" * 80)
-    
-    out_dir = 'results/figures/roc_curves'
-    os.makedirs(out_dir, exist_ok=True)
-    
-    # 1. Load Cleaned Matches
-    clean_df = pd.read_csv('data/processed/cleaned_matches_5leagues.csv', low_memory=False)
-    clean_df['MatchDate'] = pd.to_datetime(clean_df['MatchDate'])
-    
-    feat_df = compute_all_features(clean_df)
-    train_df, test_df, holdout_df = create_chronological_splits(
-        feat_df, train_end_year=2022, test_year=2023, holdout_after_test=True
-    )
-    
-    features = FEATURE_GROUPS['E9_Expanded_Market_Fatigue']
-    X_train = train_df[features].values
-    y_train = train_df['target'].values
-    
-    X_test = test_df[features].values
-    y_test = test_df['target'].values
-    
-    X_holdout = holdout_df[features].values
-    y_holdout = holdout_df['target'].values
-    
-    # 2. Train Benchmark Models
-    models_config = [
-        ('Extra Trees', 'extra_trees'),
-        ('XGBoost', 'xgboost'),
-        ('HistGradientBoosting', 'hist_gbm'),
-        ('Random Forest', 'random_forest'),
-        ('Logistic Regression', 'logistic_regression'),
-        ('Multi-Layer Perceptron (MLP)', 'mlp'),
-    ]
-    
-    fitted_models = {}
-    model_test_probs = {}
-    auc_records = []
-    
-    print("\nTraining models and evaluating test probabilities...")
-    for display_name, m_key in models_config:
-        model = get_model(m_key, balanced=False)
-        model.fit(X_train, y_train)
-        fitted_models[m_key] = model
-        
-        y_prob = model.predict_proba(X_test)
-        model_test_probs[m_key] = y_prob
-        
-        _, _, roc_auc = compute_ovr_roc(y_test, y_prob)
-        auc_records.append({
-            'Model': display_name,
-            'Evaluation_Set': '2023 Benchmark Test',
-            'AUC_Home': round(roc_auc[0], 4),
-            'AUC_Draw': round(roc_auc[1], 4),
-            'AUC_Away': round(roc_auc[2], 4),
-            'Macro_AUC': round(roc_auc['macro'], 4),
-            'Micro_AUC': round(roc_auc['micro'], 4),
-        })
+    """All curves consume exported probabilities from the single training run."""
+    out_dir = RESULTS / 'figures/roc_curves'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    records, curves = [], {}
 
-    # 3. Soft-Voting Ensemble (2023 Benchmark Test)
-    ensemble = SoftVotingEnsemble(
-        models=[
-            fitted_models['extra_trees'],
-            fitted_models['xgboost'],
-            fitted_models['hist_gbm'],
-            fitted_models['random_forest'],
-            fitted_models['logistic_regression']
-        ],
-        weights=[0.35, 0.20, 0.20, 0.15, 0.10]
-    )
-    
-    ens_prob_test = ensemble.predict_proba(X_test)
-    ens_fpr_test, ens_tpr_test, ens_auc_test = compute_ovr_roc(y_test, ens_prob_test)
-    
-    auc_records.append({
-        'Model': 'Soft-Voting Ensemble (5 Models)',
-        'Evaluation_Set': '2023 Benchmark Test',
-        'AUC_Home': round(ens_auc_test[0], 4),
-        'AUC_Draw': round(ens_auc_test[1], 4),
-        'AUC_Away': round(ens_auc_test[2], 4),
-        'Macro_AUC': round(ens_auc_test['macro'], 4),
-        'Micro_AUC': round(ens_auc_test['micro'], 4),
-    })
-    
-    plot_single_model_roc(
-        ens_fpr_test, ens_tpr_test, ens_auc_test,
-        title='One-vs-Rest ROC Curves: 5-Model Ensemble (2023 Benchmark Test)',
-        filepath=f"{out_dir}/roc_ensemble_2023_benchmark.png"
-    )
-    
-    # 4. Soft-Voting Ensemble (2024-2026 Holdout Set)
-    ens_prob_holdout = ensemble.predict_proba(X_holdout)
-    ens_fpr_ho, ens_tpr_ho, ens_auc_ho = compute_ovr_roc(y_holdout, ens_prob_holdout)
-    
-    auc_records.append({
-        'Model': 'Soft-Voting Ensemble (5 Models)',
-        'Evaluation_Set': '2024-2026 Holdout',
-        'AUC_Home': round(ens_auc_ho[0], 4),
-        'AUC_Draw': round(ens_auc_ho[1], 4),
-        'AUC_Away': round(ens_auc_ho[2], 4),
-        'Macro_AUC': round(ens_auc_ho['macro'], 4),
-        'Micro_AUC': round(ens_auc_ho['micro'], 4),
-    })
-    
-    plot_single_model_roc(
-        ens_fpr_ho, ens_tpr_ho, ens_auc_ho,
-        title='One-vs-Rest ROC Curves: Ensemble on Unseen Holdout (2024–2026)',
-        filepath=f"{out_dir}/roc_ensemble_holdout_2024_2026.png"
-    )
-    
-    # 5. Multi-Model Macro ROC Comparison Plot
+    def add(name, display, evaluation):
+        frame = load_predictions(name)
+        fpr, tpr, scores = compute_ovr_roc(frame.target.to_numpy(), frame[PROB_COLUMNS].to_numpy())
+        records.append({'Model': display, 'Evaluation_Set': evaluation,
+                        'AUC_Home': round(scores[0], 4), 'AUC_Draw': round(scores[1], 4),
+                        'AUC_Away': round(scores[2], 4), 'Macro_AUC': round(scores['macro'], 4),
+                        'Micro_AUC': round(scores['micro'], 4)})
+        return fpr, tpr, scores
+
+    for display in ['Extra Trees', 'XGBoost', 'HistGradientBoosting', 'Random Forest',
+                    'Logistic Regression', 'Multi-Layer Perceptron (MLP)']:
+        curves[display] = add('E9_' + display, display, '2023 Benchmark Test')
+    base = add('Ensemble_5Models_E9', 'Soft-Voting Ensemble (5 Models)', '2023 Benchmark Test')
+    curves['Standard ensemble'] = base
+    plot_single_model_roc(*base, 'Five-model ensemble (2023)', str(out_dir / 'roc_ensemble_2023_benchmark.png'))
+    metadata = load_metadata()
+    if metadata['partitions']['holdout']['matches']:
+        ho = add('Holdout_Ensemble', 'Soft-Voting Ensemble (5 Models)', holdout_label(metadata))
+        plot_single_model_roc(*ho, holdout_label(metadata), str(out_dir / 'roc_ensemble_holdout.png'))
     plt.figure(figsize=(9, 7))
-    model_colors = {
-        'Soft-Voting Ensemble': ('#e41a1c', ens_fpr_test['macro'], ens_tpr_test['macro'], ens_auc_test['macro']),
-    }
-    
-    for display_name, m_key in models_config:
-        f_p, t_p, a_p = compute_ovr_roc(y_test, model_test_probs[m_key])
-        model_colors[display_name] = (None, f_p['macro'], t_p['macro'], a_p['macro'])
-        
-    palette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf']
-    for idx, (m_label, (_, f_macro, t_macro, a_macro)) in enumerate(model_colors.items()):
-        lw = 2.8 if 'Ensemble' in m_label else 1.8
-        plt.plot(
-            f_macro, t_macro, label=f"{m_label} (Macro AUC = {a_macro:.3f})",
-            linewidth=lw, color=palette[idx % len(palette)]
-        )
-        
-    plt.plot([0, 1], [0, 1], 'k--', linewidth=1.5, alpha=0.7, label='Random Chance (AUC = 0.500)')
-    plt.xlim([-0.02, 1.02])
-    plt.ylim([-0.02, 1.05])
-    plt.xlabel('False Positive Rate', fontsize=12, fontweight='bold')
-    plt.ylabel('True Positive Rate', fontsize=12, fontweight='bold')
-    plt.title('Multi-Model Comparison: Macro-Average ROC Curves (2023 Benchmark)', fontsize=13, fontweight='bold', pad=14)
-    plt.legend(loc="lower right", fontsize=10, framealpha=0.95)
-    plt.grid(True, linestyle='--', alpha=0.5)
+    for display, (fpr, tpr, scores) in curves.items():
+        plt.plot(fpr['macro'], tpr['macro'], label=f"{display} ({scores['macro']:.3f})")
+    plt.plot([0, 1], [0, 1], 'k--', alpha=0.5)
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+    plt.title('2023 macro-average ROC comparison')
+    plt.legend(loc='lower right', fontsize=9)
+    plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f"{out_dir}/roc_multimodel_comparison.png", dpi=200)
+    plt.savefig(out_dir / 'roc_multimodel_comparison.png', dpi=200)
     plt.close()
-    print(f"Saved: {out_dir}/roc_multimodel_comparison.png")
-
-    # 6. SMOTE vs Baseline ROC Comparison
-    print("\nTraining SMOTE ensemble to generate comparative ROC curves...")
-    imputer = SimpleImputer(strategy='median')
-    X_train_imp = imputer.fit_transform(X_train)
-    smote = SMOTE(random_state=42)
-    X_sm, y_sm = smote.fit_resample(X_train_imp, y_train)
-    
-    smote_fitted = {}
-    for display_name, m_key in [('Extra Trees', 'extra_trees'), ('XGBoost', 'xgboost'), ('HistGBM', 'hist_gbm'), ('Random Forest', 'random_forest'), ('Logistic Reg', 'logistic_regression')]:
-        m = get_model(m_key, balanced=False)
-        m.fit(X_sm, y_sm)
-        smote_fitted[m_key] = m
-        
-    smote_ensemble = SoftVotingEnsemble(
-        models=[smote_fitted['extra_trees'], smote_fitted['xgboost'], smote_fitted['hist_gbm'], smote_fitted['random_forest'], smote_fitted['logistic_regression']],
-        weights=[0.35, 0.20, 0.20, 0.15, 0.10]
-    )
-    smote_prob_test = smote_ensemble.predict_proba(X_test)
-    sm_fpr, sm_tpr, sm_auc = compute_ovr_roc(y_test, smote_prob_test)
-    
-    auc_records.append({
-        'Model': 'SMOTE Soft-Voting Ensemble',
-        'Evaluation_Set': '2023 Benchmark Test',
-        'AUC_Home': round(sm_auc[0], 4),
-        'AUC_Draw': round(sm_auc[1], 4),
-        'AUC_Away': round(sm_auc[2], 4),
-        'Macro_AUC': round(sm_auc['macro'], 4),
-        'Micro_AUC': round(sm_auc['micro'], 4),
-    })
-
-    # Plot SMOTE vs Baseline (showing Draw class specifically and Macro average)
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    
-    # Left subplot: Macro-Average
-    axes[0].plot(ens_fpr_test['macro'], ens_tpr_test['macro'], color='#1f77b4', linewidth=2.5, label=f"Original Ensemble (AUC = {ens_auc_test['macro']:.3f})")
-    axes[0].plot(sm_fpr['macro'], sm_tpr['macro'], color='#e377c2', linewidth=2.5, linestyle='--', label=f"SMOTE Ensemble (AUC = {sm_auc['macro']:.3f})")
-    axes[0].plot([0, 1], [0, 1], 'k--', alpha=0.6)
-    axes[0].set_title('Macro-Average ROC: Original vs SMOTE', fontsize=12, fontweight='bold')
-    axes[0].set_xlabel('False Positive Rate', fontsize=11)
-    axes[0].set_ylabel('True Positive Rate', fontsize=11)
-    axes[0].grid(True, linestyle='--', alpha=0.5)
-    axes[0].legend(loc="lower right", fontsize=10.5)
-    
-    # Right subplot: Draw Class (Class 1) Discrimination
-    axes[1].plot(ens_fpr_test[1], ens_tpr_test[1], color='#ff7f0e', linewidth=2.5, label=f"Original Ensemble: Draw (AUC = {ens_auc_test[1]:.3f})")
-    axes[1].plot(sm_fpr[1], sm_tpr[1], color='#2ca02c', linewidth=2.5, linestyle='--', label=f"SMOTE Ensemble: Draw (AUC = {sm_auc[1]:.3f})")
-    axes[1].plot([0, 1], [0, 1], 'k--', alpha=0.6)
-    axes[1].set_title('Minority Class Discrimination: Draw (D) ROC', fontsize=12, fontweight='bold')
-    axes[1].set_xlabel('False Positive Rate', fontsize=11)
-    axes[1].set_ylabel('True Positive Rate', fontsize=11)
-    axes[1].grid(True, linestyle='--', alpha=0.5)
-    axes[1].legend(loc="lower right", fontsize=10.5)
-    
-    plt.suptitle('Comparison: Original Baseline vs SMOTE-Balanced Ensemble (2023 Test)', fontsize=14, fontweight='bold', y=1.02)
-    plt.tight_layout()
-    plt.savefig(f"{out_dir}/roc_smote_vs_baseline.png", dpi=200, bbox_inches='tight')
-    plt.close()
-    print(f"Saved: {out_dir}/roc_smote_vs_baseline.png")
-
-    # 7. Save AUC metrics to CSV
-    auc_df = pd.DataFrame(auc_records)
-    csv_path = 'results/roc_auc_metrics.csv'
-    auc_df.to_csv(csv_path, index=False)
-    print(f"\nSaved numerical AUC metrics to {csv_path}")
-    print("\n" + "=" * 80)
-    print("ROC-AUC SCORES SUMMARY TABLE")
-    print("=" * 80)
-    print(auc_df.to_string(index=False))
+    if (RESULTS / 'predictions/SMOTE_Ensemble_5Models_E9.csv').exists():
+        smote = add('SMOTE_Ensemble_5Models_E9', 'SMOTE Soft-Voting Ensemble', '2023 Benchmark Test')
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        for axis, key, title in [(axes[0], 'macro', 'Macro-average ROC'), (axes[1], 1, 'Draw ROC')]:
+            for name, (fpr, tpr, scores) in [('Original', base), ('SMOTE', smote)]:
+                axis.plot(fpr[key], tpr[key], label=f"{name} ({scores[key]:.3f})")
+            axis.plot([0, 1], [0, 1], 'k--', alpha=0.5)
+            axis.set(xlabel='False positive rate', ylabel='True positive rate', title=title)
+            axis.legend()
+            axis.grid(alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(out_dir / 'roc_smote_vs_baseline.png', dpi=200)
+        plt.close(fig)
+    pd.DataFrame(records).to_csv(RESULTS / 'roc_auc_metrics.csv', index=False)
 
 
 if __name__ == '__main__':
     generate_all_roc_curves()
-

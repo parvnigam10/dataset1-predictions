@@ -1,9 +1,9 @@
-Model,Accuracy_Orig,Accuracy_SMOTE,Acc_Delta,MacroF1_Orig,MacroF1_SMOTE,MacroF1_Delta,DrawRecall_Orig,DrawRecall_SMOTE,DrawRecall_Delta,HomeRecall_Orig,HomeRecall_SMOTE,AwayRecall_Orig,AwayRecall_SMOTE
-Logistic Regression,53.88,49.4,-4.48,0.4035,0.4532,0.0497,0.83,19.96,19.13,80.0,55.14,58.23,65.82
-Random Forest,54.04,51.64,-2.4,0.403,0.4543,0.0513,0.83,15.18,14.35,81.24,64.97,56.78,62.03
-Extra Trees,54.19,50.55,-3.65,0.397,0.4698,0.0727,0.0,24.32,24.32,83.16,57.29,54.97,62.57
-HistGradientBoosting,53.83,52.74,-1.09,0.4107,0.4226,0.012,2.29,5.41,3.12,80.11,75.25,56.6,57.87
-XGBoost,53.78,53.67,-0.1,0.4088,0.4202,0.0114,1.87,3.33,1.46,80.11,75.48,56.78,62.57
-Multi-Layer Perceptron (MLP),54.19,49.61,-4.59,0.4142,0.4538,0.0395,2.7,23.08,20.37,81.02,62.94,56.06,51.36
-5-Model Ensemble (2023 Test),54.3,52.01,-2.29,0.4054,0.4445,0.0391,0.62,11.02,10.4,80.79,66.78,58.59,64.01
-5-Model Ensemble (Holdout),53.58,51.98,-1.6,0.4063,0.459,0.0527,0.78,14.3,13.51,82.7,66.13,56.82,63.16
+Model,Accuracy_Orig,Accuracy_SMOTE,Acc_Delta,MacroF1_Orig,MacroF1_SMOTE,DrawRecall_Orig,DrawRecall_SMOTE
+Logistic Regression,53.88,49.35,-4.53,0.4035,0.4527,0.83,19.96
+Random Forest,54.04,51.64,-2.4,0.403,0.4543,0.83,15.18
+Extra Trees,54.19,50.55,-3.65,0.397,0.4698,0.0,24.32
+HistGradientBoosting,53.83,52.74,-1.09,0.4107,0.4226,2.29,5.41
+XGBoost,54.04,53.15,-0.89,0.4119,0.4136,1.87,2.91
+Multi-Layer Perceptron (MLP),54.19,49.61,-4.59,0.4142,0.4538,2.7,23.08
+Ensemble (2023),54.3,52.21,-2.08,0.4038,0.4454,0.62,10.81
+"Holdout (2024-01-01 to 2025-05-25, n=2,651)",53.79,53.9,0.11,0.4077,0.4655,0.29,11.49

@@ -1,3 +1,5 @@
+> **Historical manuscript draft.** This document contains results from earlier runs, including a different dataset snapshot and inconsistent ensemble definitions. Its numeric tables are not the verified current run. Use the generated README results, `results/predictions/`, and `results/run_metadata.json` as the source when revising this manuscript. Do not combine earlier 2024–2026 figures with the shorter current holdout.
+
 # Predicting Association Football Match Outcomes: A Leak-Free Machine Learning Framework Across Five Major European Leagues (2000–2026)
 
 **Parv Nigam**  
@@ -623,3 +625,4 @@ Future extensions of this work include integrating graph neural networks (GNNs) 
 18. **Wheatcroft, E.** (2020). Evaluating sports forecasting models: A comparison of probability scoring rules. *International Journal of Forecasting*, 36(2), 488–498.
 19. **Breiman, L.** (2001). Random forests. *Machine Learning*, 45(1), 5–32.
 20. **Chen, T., & Guestrin, C.** (2016). XGBoost: A scalable tree boosting system. *Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining*, 785–794.
+

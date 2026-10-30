@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "dataset": {
+    "file": "data/raw/Matches.csv",
+    "sha256": "eac9d0096993c8a5705f724e0ddc5513f71aca29058106182bc9a2c6340bcc0e",
+    "raw_matches": 230557,
+    "matches": 43708,
+    "start": "2000-07-28",
+    "end": "2025-05-25"
+  },
+  "partitions": {
+    "train": {
+      "matches": 39138,
+      "start": "2000-07-28",
+      "end": "2022-12-31"
+    },
+    "test": {
+      "matches": 1919,
+      "start": "2023-01-01",
+      "end": "2023-12-31"
+    },
+    "holdout": {
+      "matches": 2651,
+      "start": "2024-01-01",
+      "end": "2025-05-25"
+    }
+  },
+  "split": {
+    "train_end_year": 2022,
+    "test_year": 2023,
+    "holdout_after_test": true
+  },
+  "ensemble": {
+    "models": [
+      "extra_trees",
+      "xgboost",
+      "hist_gbm",
+      "random_forest",
+      "logistic_regression"
+    ],
+    "weights": [
+      0.35,
+      0.2,
+      0.2,
+      0.15,
+      0.1
+    ],
+    "logistic_regression_class_weight": null,
+    "random_state": 42
+  },
+  "feature_columns": [
+    "League_D1",
+    "League_E0",
+    "League_F1",
+    "League_I1",
+    "League_SP1",
+    "EloDiff",
+    "EloAdvantage",
+    "EloWinProbHome",
+    "Form5Diff",
+    "FormMomentumDiff",
+    "GoalsScoredDiff5",
+    "GoalsConcededDiff5",
+    "GoalDiffMargin5",
+    "HomeAttack_vs_AwayDefence",
+    "AwayAttack_vs_HomeDefence",
+    "NetMatchupExpectation",
+    "RecencyMomentumDiff",
+    "OpponentAdjGoalsDiff",
+    "OpponentAdjFormDiff",
+    "VenueWinRateDiff",
+    "VenueGoalsScoredDiff",
+    "VenueGoalsConcededDiff",
+    "ShotsDiffL5",
+    "ShotsTotalL5",
+    "SOTDiffL5",
+    "CornersDiffL5",
+    "CornersTotalL5",
+    "ShotAccDiffL5",
+    "GameDominanceIndex",
+    "CardPointsDiffL5",
+    "NormProbHome",
+    "NormProbDraw",
+    "NormProbAway",
+    "BookmakerMargin",
+    "OddsRatio_H_A",
+    "1XOdd",
+    "X2Odd",
+    "12Odd",
+    "DrawLikelihood",
+    "DaysRestHome",
+    "DaysRestAway",
+    "RestAdvantage",
+    "CongestedHome",
+    "CongestedAway",
+    "H2H_HomeWinRate",
+    "H2H_DrawRate",
+    "H2H_GoalDiff",
+    "MarketHandiSize",
+    "MarketHandiDiscrepancy",
+    "MarketImpliedOver25",
+    "MarketGoalExpectancyRatio",
+    "OddsSpreadHome",
+    "OddsSpreadDraw",
+    "OddsSpreadAway",
+    "EloDiff_x_ImpliedOver25",
+    "NormHome_x_NormDraw"
+  ],
+  "environment": {
+    "python": "3.12.14",
+    "numpy": "2.5.4",
+    "pandas": "2.2.3",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "xgboost": "3.4.1",
+    "imbalanced-learn": "0.14.2",
+    "matplotlib": "3.10.8",
+    "seaborn": "0.13.2"
+  },
+  "source_sha256": {
+    "src/__init__.py": "be710c6cd045bea6e6c7b0de51bc453e83b09e82087335879baf1db83bcf1011",
+    "src/artifacts.py": "a93bac54fffaa4349f4d6e105811ef0c84af06d61439342f7e315cd3d1176b73",
+    "src/build_notebook.py": "45b2421c1e04978c229f39a6acfc516fb3927656a6a4941cd721f67a87d6c8e2",
+    "src/data_loader.py": "7839b83ca0f16a951bd47a28a692653f0ad1728f735a22db4dd81a489a7915d9",
+    "src/error_analysis.py": "e0ecf67db23dff59d40707aa7e08ee7e1c8ecb18a790aa3d2eebb7f90f64b174",
+    "src/evaluate.py": "fda0df64e07e8b3e364958ddd108f01ba3088284791355fc1a631871963bb6a0",
+    "src/execute_notebook.py": "8b33196624ef9cc0ea2bd01b92f6a0dc04fa42198d3d395c0b3f3c590b2e973a",
+    "src/features.py": "aa65016a682c6593f6a40a124606ceedc226392bb96250f48d734aec1587d42e",
+    "src/inspect_data.py": "4859cdcb976887a0e4f5d444b7ebac528b3bf92fb3d044e47231371bdc88b43a",
+    "src/models.py": "2d7637f12658b3f7ce9c83fc381dd50a62293313eaa872c9db096b01a966199f",
+    "src/plot_feature_importance.py": "54746df5e480be2d6c903401668175da2c838cc212bac149ac3aee80877451d7",
+    "src/plot_roc_curves.py": "22a2c4dcc62b3318c32f866dc98ab20bce961b2212aa378aa22366309055141b",
+    "src/run_all.py": "7cfcca65462c4a23fc53c9035c19b8d29de269de082a40292ad44d98b02776af",
+    "src/run_pipeline.py": "220bc7d59d45f16479bc61f84872a94975245a20f393504c6b609ead9e5e1160",
+    "src/run_smote_experiments.py": "c3acb3fcd4cd97afc3bbe7e623203f438caee18ebf846c7847b3b3e3eaae32f7",
+    "src/test_feat.py": "c9aabd3d5f0c6424192e414c50e23c3f4cc4d07c55de887ae4b5c4a8e63ee86a",
+    "src/update_readme.py": "6dee54635374566ae9950260682bd9b66c454c170649b44bd0002afff0228391"
+  },
+  "evaluation": {
+    "threshold_selection": "Descriptive test/holdout sweeps; no independent validation tuning claimed.",
+    "historical_holdout_2026_verified": false
+  }
+}
