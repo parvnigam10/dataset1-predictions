@@ -114,6 +114,10 @@ def get_model(model_name: str, balanced: bool = False, **kwargs):
 class SoftVotingEnsemble:
     """Combines predicted probability outputs from multiple fitted models."""
     def __init__(self, models: list, weights: list = None):
+        if not models:
+            raise ValueError('An ensemble needs at least one model')
+        if weights is not None and (len(weights) != len(models) or not np.isfinite(weights).all() or np.any(np.asarray(weights) < 0) or sum(weights) <= 0):
+            raise ValueError('Weights must be finite, nonnegative and match the model count')
         self.models = models
         if weights is None:
             self.weights = [1.0 / len(models)] * len(models)
@@ -200,3 +204,25 @@ def evaluate_double_chance(y_true: np.ndarray, probs: np.ndarray) -> dict:
         'accuracy_pct': round(correct / total * 100.0, 2)
     }
 
+
+
+
+# Ordinary LR belongs in the standard ensemble. Balanced LR is a separate benchmark.
+ENSEMBLE_KEYS = ('extra_trees', 'xgboost', 'hist_gbm', 'random_forest', 'logistic_regression')
+ENSEMBLE_WEIGHTS = (0.35, 0.20, 0.20, 0.15, 0.10)
+ENSEMBLE_CONFIG = {'models': list(ENSEMBLE_KEYS), 'weights': list(ENSEMBLE_WEIGHTS),
+                   'logistic_regression_class_weight': None, 'random_state': 42}
+
+
+def benchmark_key(model_name, balanced=False):
+    return 'balanced_logistic_regression' if model_name == 'logistic_regression' and balanced else model_name
+
+
+def build_standard_ensemble(fitted_models):
+    missing = set(ENSEMBLE_KEYS) - fitted_models.keys()
+    if missing:
+        raise ValueError(f'Missing fitted ensemble members: {sorted(missing)}')
+    lr = fitted_models['logistic_regression']
+    if hasattr(lr, 'named_steps') and lr.named_steps['clf'].class_weight is not None:
+        raise ValueError('Standard ensemble requires ordinary, unweighted logistic regression')
+    return SoftVotingEnsemble([fitted_models[k] for k in ENSEMBLE_KEYS], list(ENSEMBLE_WEIGHTS))
