@@ -1,0 +1,5 @@
+Experiment,Evaluation_Set,total_matches,correct_matches,accuracy_pct
+Ensemble_5Models_E9,2023 Benchmark Test,1919,1534,79.94
+Holdout_Ensemble,2024-01-01 to 2025-05-25 Holdout,2651,2127,80.23
+SMOTE_Ensemble_5Models_E9,2023 Benchmark Test (SMOTE),1919,1516,79.0
+SMOTE_Holdout_Ensemble,2024-01-01 to 2025-05-25 Holdout (SMOTE),2651,2113,79.71

@@ -1,0 +1,171 @@
+{
+  "run_utc": "2026-10-30T06:59:44.025204+00:00",
+  "python": "3.12.14",
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "numerical_threads": 4,
+  "estimator_jobs": 4,
+  "packages": {
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "scipy": "1.17.0",
+    "scikit-learn": "1.8.0",
+    "xgboost": "3.1.1",
+    "imbalanced-learn": "0.14.1",
+    "matplotlib": "3.10.8",
+    "seaborn": "0.13.2",
+    "joblib": "1.5.3",
+    "threadpoolctl": "3.6.0"
+  },
+  "input": {
+    "file": "data/raw/Matches.csv",
+    "sha256": "eac9d0096993c8a5705f724e0ddc5513f71aca29058106182bc9a2c6340bcc0e",
+    "raw_rows": 230557
+  },
+  "clean": {
+    "matches": 43708,
+    "date_min": "2000-07-28",
+    "date_max": "2025-05-25",
+    "class_counts": {
+      "H": 19951,
+      "A": 12437,
+      "D": 11320
+    }
+  },
+  "train": {
+    "matches": 39138,
+    "date_min": "2000-07-28",
+    "date_max": "2022-12-31",
+    "class_counts": {
+      "H": 17965,
+      "A": 11013,
+      "D": 10160
+    }
+  },
+  "test": {
+    "matches": 1919,
+    "date_min": "2023-01-01",
+    "date_max": "2023-12-31",
+    "class_counts": {
+      "H": 885,
+      "A": 553,
+      "D": 481
+    }
+  },
+  "holdout": {
+    "matches": 2651,
+    "date_min": "2024-01-01",
+    "date_max": "2025-05-25",
+    "class_counts": {
+      "H": 1101,
+      "A": 871,
+      "D": 679
+    }
+  },
+  "holdout_label": "2024-01-01 to 2025-05-25 Holdout",
+  "leagues": {
+    "E0": 9410,
+    "I1": 9012,
+    "SP1": 9008,
+    "F1": 8756,
+    "D1": 7522
+  },
+  "feature_group": "E9_Expanded_Market_Fatigue",
+  "features": [
+    "League_D1",
+    "League_E0",
+    "League_F1",
+    "League_I1",
+    "League_SP1",
+    "EloDiff",
+    "EloAdvantage",
+    "EloWinProbHome",
+    "Form5Diff",
+    "FormMomentumDiff",
+    "GoalsScoredDiff5",
+    "GoalsConcededDiff5",
+    "GoalDiffMargin5",
+    "HomeAttack_vs_AwayDefence",
+    "AwayAttack_vs_HomeDefence",
+    "NetMatchupExpectation",
+    "RecencyMomentumDiff",
+    "OpponentAdjGoalsDiff",
+    "OpponentAdjFormDiff",
+    "VenueWinRateDiff",
+    "VenueGoalsScoredDiff",
+    "VenueGoalsConcededDiff",
+    "ShotsDiffL5",
+    "ShotsTotalL5",
+    "SOTDiffL5",
+    "CornersDiffL5",
+    "CornersTotalL5",
+    "ShotAccDiffL5",
+    "GameDominanceIndex",
+    "CardPointsDiffL5",
+    "NormProbHome",
+    "NormProbDraw",
+    "NormProbAway",
+    "BookmakerMargin",
+    "OddsRatio_H_A",
+    "1XOdd",
+    "X2Odd",
+    "12Odd",
+    "DrawLikelihood",
+    "DaysRestHome",
+    "DaysRestAway",
+    "RestAdvantage",
+    "CongestedHome",
+    "CongestedAway",
+    "H2H_HomeWinRate",
+    "H2H_DrawRate",
+    "H2H_GoalDiff",
+    "MarketHandiSize",
+    "MarketHandiDiscrepancy",
+    "MarketImpliedOver25",
+    "MarketGoalExpectancyRatio",
+    "OddsSpreadHome",
+    "OddsSpreadDraw",
+    "OddsSpreadAway",
+    "EloDiff_x_ImpliedOver25",
+    "NormHome_x_NormDraw"
+  ],
+  "ensemble": {
+    "members": [
+      "extra_trees",
+      "xgboost",
+      "hist_gbm",
+      "random_forest",
+      "logistic_regression"
+    ],
+    "weights": [
+      0.35,
+      0.2,
+      0.2,
+      0.15,
+      0.1
+    ],
+    "balanced_lr": false
+  },
+  "smote": {
+    "random_state": 42,
+    "train_only": true,
+    "impute_before_resampling": true,
+    "scaled_before_resampling": false
+  },
+  "source_sha256": {
+    "src/__init__.py": "44a3c85b02db614cf7f13c72bbe799e3de5b07daaf7aad5fab7b9e57cb752e96",
+    "src/build_notebook.py": "c96195aa647117332e3eb7c4b10c525cbc46f25171d1ebf977e8f26aafed289f",
+    "src/data_loader.py": "bc642775fa532862a9e66718840c5541c2f3bf47ad2dab5a063f326cddf39db3",
+    "src/error_analysis.py": "3377fb4852f263daf26f0bf7e7572acf388e0966e87a8ff88ac81cf01763086d",
+    "src/evaluate.py": "c8ed39de2a61774f838788fb1728b1f012c340c226a35ba7be3e5a0ee4f3b722",
+    "src/execute_notebook.py": "c2f1334609c8d7893634c52d6d0eff8f28f1b742ad1deacc94c6d3b8b0a221db",
+    "src/features.py": "ab982e199f1168b7fb823f99ed2f8b2ea26d16827bf7346e75392b46cfc05233",
+    "src/inspect_data.py": "7697050d0713dcd2d9aa5a984b2e8f19e34749be71af8860ad422dc901cd04aa",
+    "src/models.py": "d1e08ecbf07bdf42b0f76da418bbdb91ef2fddfafaf7d3db13824d1616f55cd4",
+    "src/plot_feature_importance.py": "5e4b1626a7cc154415bebd4b45d6770dccee0ae84b1ae46e470f4dcba47c3489",
+    "src/plot_roc_curves.py": "569aed100a49a08d1daa816e6a76d668cdad48831c67a6697b5ce71e2eda87e5",
+    "src/refresh_results.py": "76e2606372b776efe22d00b6a1d9088e5b959ab9c59ae910fd372c024ee0a881",
+    "src/run_pipeline.py": "b94a7b83a26ee87d5febff6871831cae7da80d7b95aa5ba45b0686183b6521c7",
+    "src/run_smote_experiments.py": "99001ea2afe7cf5d02c29447553e44f5229038c81c89d22bc1b767b0e112181a",
+    "src/test_feat.py": "8a03bd5cb84b01f9b77c676385da3a40e695d1b455a5c82919d872db171fd8f4"
+  }
+}

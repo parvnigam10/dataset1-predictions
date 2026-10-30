@@ -41,7 +41,7 @@ def get_model(model_name: str, balanced: bool = False, **kwargs):
             min_samples_leaf=kwargs.get('min_samples_leaf', 5),
             class_weight=class_weight,
             random_state=42,
-            n_jobs=-1
+            n_jobs=4
         )
         return Pipeline([
             ('imputer', SimpleImputer(strategy='median')),
@@ -55,7 +55,7 @@ def get_model(model_name: str, balanced: bool = False, **kwargs):
             min_samples_leaf=kwargs.get('min_samples_leaf', 5),
             class_weight=class_weight,
             random_state=42,
-            n_jobs=-1
+            n_jobs=4
         )
         return Pipeline([
             ('imputer', SimpleImputer(strategy='median')),
@@ -86,7 +86,7 @@ def get_model(model_name: str, balanced: bool = False, **kwargs):
             colsample_bytree=kwargs.get('colsample_bytree', 0.8),
             eval_metric='mlogloss',
             random_state=42,
-            n_jobs=-1
+            n_jobs=4
         )
         return Pipeline([
             ('imputer', SimpleImputer(strategy='median')),
@@ -200,3 +200,16 @@ def evaluate_double_chance(y_true: np.ndarray, probs: np.ndarray) -> dict:
         'accuracy_pct': round(correct / total * 100.0, 2)
     }
 
+
+
+# One definition shared by training, diagnostics, and plotting.
+ENSEMBLE_KEYS = ('extra_trees', 'xgboost', 'hist_gbm', 'random_forest', 'logistic_regression')
+ENSEMBLE_WEIGHTS = (0.35, 0.20, 0.20, 0.15, 0.10)
+
+
+def make_ensemble(fitted_models):
+    """Use ordinary LR; the balanced LR experiment has a separate key."""
+    return SoftVotingEnsemble(
+        models=[fitted_models[key] for key in ENSEMBLE_KEYS],
+        weights=ENSEMBLE_WEIGHTS,
+    )

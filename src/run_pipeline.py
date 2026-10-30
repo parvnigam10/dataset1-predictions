@@ -1,315 +1,192 @@
-"""
-run_pipeline.py
-Runs the complete Dataset 1 experimental pipeline from Phase 1 to Phase 19:
-- Loads and cleans Matches.csv
-- Filters 5 major leagues across full historical timeline (2000-2025)
-- Computes leakage-free pre-match features
-- Executes feature group progression:
-    E0: Baseline (League indicator)
-    E1: + Elo
-    E2: + Form
-    E3: + Goals
-    E4: + Venue
-    E5: + Match Stats
-    E6: + Odds
-    E7: Tuned Selected Features
-- Executes Multi-Model Comparison (E8):
-    Logistic Regression, Balanced LR, Random Forest, Extra Trees,
-    HistGradientBoosting, XGBoost, MLP
-- Executes Draw Calibration and Class Imbalance tuning
-- Executes Ensemble Model (E9)
-- Evaluates on 2023 benchmark test set and holds out 2024-2026 data
-- Saves results to results/experiment_results.csv and figures
-"""
+"""Train once and export every result from the same fitted models.
 
+Run from any directory: python src/run_pipeline.py
+The raw CSV remains local. Results include its SHA-256 and exact split dates.
+"""
 import os
 import sys
+from pathlib import Path
 
-# Ensure repository root is on sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+# Bound numerical parallelism to keep runs practical on laptops and CI.
+for variable in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
+    os.environ.setdefault(variable, '4')
 
-import pandas as pd
+import hashlib
+import importlib.metadata
+import json
+import platform
+from datetime import datetime, timezone
 import numpy as np
-
-from src.data_loader import (
-    load_raw_dataset, clean_and_filter_matches, create_chronological_splits
-)
+import pandas as pd
+from imblearn.over_sampling import SMOTE
+from sklearn.impute import SimpleImputer
+from threadpoolctl import threadpool_limits
+from src.data_loader import load_raw_dataset, clean_and_filter_matches, create_chronological_splits
 from src.features import compute_all_features, FEATURE_GROUPS
-from src.models import get_model, SoftVotingEnsemble, tune_draw_threshold
-from src.evaluate import (
-    evaluate_predictions, plot_and_save_confusion_matrix, print_evaluation_summary
-)
+from src.models import get_model, make_ensemble, tune_draw_threshold, ENSEMBLE_KEYS, ENSEMBLE_WEIGHTS
+from src.evaluate import evaluate_predictions, plot_and_save_confusion_matrix
+
+MODELS = [
+    ('Logistic Regression', 'logistic_regression', False),
+    ('Balanced Logistic Regression', 'logistic_regression', True),
+    ('Random Forest', 'random_forest', False),
+    ('Extra Trees', 'extra_trees', False),
+    ('HistGradientBoosting', 'hist_gbm', False),
+    ('XGBoost', 'xgboost', False),
+    ('Multi-Layer Perceptron (MLP)', 'mlp', False),
+]
+
+
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def split_description(df):
+    return {'matches': len(df), 'date_min': df.MatchDate.min().strftime('%Y-%m-%d'),
+            'date_max': df.MatchDate.max().strftime('%Y-%m-%d'),
+            'class_counts': {k: int(v) for k, v in df.FTResult.value_counts().items()}}
+
+
+def export_predictions(frame, probs, path):
+    out = frame[['MatchDate', 'Division', 'HomeTeam', 'AwayTeam', 'FTResult', 'target', 'EloDiff']].copy()
+    out['pred_target'] = probs.argmax(axis=1)
+    for index, name in enumerate(('H', 'D', 'A')):
+        out[f'pred_prob_{name}'] = probs[:, index]
+    out['is_correct'] = (out.target == out.pred_target).astype(int)
+    out['MaxProb'] = probs.max(axis=1)
+    out.to_csv(path, index=False)
 
 
 def run_complete_experiments():
-    print("=" * 80)
-    print("FOOTBALL MATCH OUTCOME PREDICTION --- DATASET 1 COMPLETE PIPELINE")
-    print("=" * 80)
-    
-    # 1. Load and Clean Data
-    print("\n[Phase 1-3] Loading and cleaning dataset...")
-    raw_df = load_raw_dataset('data/raw/Matches.csv')
-    print(f"Raw shape: {raw_df.shape}")
-    
-    clean_df = clean_and_filter_matches(raw_df)
-    print(f"Filtered 5 Major Leagues shape: {clean_df.shape}")
-    print(f"Date range: {clean_df['MatchDate'].min().strftime('%Y-%m-%d')} to {clean_df['MatchDate'].max().strftime('%Y-%m-%d')}")
-    print("Target distribution in filtered set:")
-    print(clean_df['FTResult'].value_counts(normalize=True).round(4))
-    
-    # Save cleaned base matches for reproducibility
-    os.makedirs('data/processed', exist_ok=True)
-    clean_df.to_csv('data/processed/cleaned_matches_5leagues.csv', index=False)
-    print("Saved cleaned matches to data/processed/cleaned_matches_5leagues.csv")
-    
-    # 2. Compute Leakage-Free Features
-    print("\n[Phase 6-12] Computing leakage-free pre-match features across chronological timeline...")
-    feat_df = compute_all_features(clean_df)
-    print(f"Engineered dataset shape: {feat_df.shape}")
-    
-    # 3. Create Chronological Train / Test Split
-    print("\n[Phase 5] Creating chronological train/test split...")
-    train_df, test_df, holdout_df = create_chronological_splits(
-        feat_df, train_end_year=2022, test_year=2023, holdout_after_test=True
-    )
-    print(f"Training set (2000 - 2022) : {len(train_df)} matches")
-    print(f"Testing set (2023)         : {len(test_df)} matches (Standard Benchmark Year)")
-    print(f"Holdout set (2024 - 2026)  : {len(holdout_df)} matches")
-    
-    y_train = train_df['target'].values
-    y_test = test_df['target'].values
-    y_holdout = holdout_df['target'].values
-    
-    results_list = []
-    
-    # -------------------------------------------------------------
-    # FEATURE GROUP PROGRESSION EXPERIMENTS (E0 -> E7)
-    # -------------------------------------------------------------
-    print("\n" + "=" * 80)
-    print("RUNNING FEATURE GROUP PROGRESSION EXPERIMENTS (E0 to E7)")
-    print("=" * 80)
-    
-    feature_experiments = [
-        ('E0_Baseline', 'E0_Baseline', 'logistic_regression', False),
-        ('E1_Elo', 'E1_Elo', 'logistic_regression', False),
-        ('E2_Form', 'E2_Form', 'logistic_regression', False),
-        ('E3_Goals', 'E3_Goals', 'xgboost', False),
-        ('E4_Venue', 'E4_Venue', 'xgboost', False),
-        ('E5_MatchStats', 'E5_MatchStats', 'xgboost', False),
-        ('E6_Odds', 'E6_Odds', 'xgboost', False),
-        ('E7_Selected', 'E7_Selected', 'xgboost', False),
-        ('E8_Paper_Advanced', 'E8_Paper_Advanced', 'xgboost', False),
-        ('E9_Expanded_Market_Fatigue', 'E9_Expanded_Market_Fatigue', 'extra_trees', False),
-    ]
-    
-    for exp_id, feat_key, model_type, balanced in feature_experiments:
-        feats = FEATURE_GROUPS[feat_key]
-        X_train = train_df[feats].values
-        X_test = test_df[feats].values
-        
-        model = get_model(model_type, balanced=balanced)
-        model.fit(X_train, y_train)
-        
-        y_pred = model.predict(X_test)
-        y_prob = model.predict_proba(X_test)
-        
-        metrics = evaluate_predictions(y_test, y_pred, y_prob, experiment_name=f"{exp_id}_{model_type}")
-        metrics['Features'] = feat_key
-        metrics['Model'] = model_type
-        metrics['Num_Features'] = len(feats)
-        print_evaluation_summary(metrics)
-        
-        cm_path = f"results/figures/confusion_matrices/{exp_id}_{model_type}.png"
-        plot_and_save_confusion_matrix(metrics['Confusion_Matrix'], f"{exp_id} ({model_type})", cm_path)
-        
-        # Save metrics (excluding matrix for csv)
-        row_dict = {k: v for k, v in metrics.items() if k != 'Confusion_Matrix'}
-        results_list.append(row_dict)
-        
-    # -------------------------------------------------------------
-    # MULTI-MODEL BENCHMARK COMPARISON
-    # -------------------------------------------------------------
-    print("\n" + "=" * 80)
-    print("RUNNING MULTI-MODEL BENCHMARK COMPARISON ON EXPANDED FEATURES (E9)")
-    print("=" * 80)
-    
-    # We compare models using the rich leakage-free feature set (E9_Expanded_Market_Fatigue)
-    benchmark_features = FEATURE_GROUPS['E9_Expanded_Market_Fatigue']
-    X_train_bench = train_df[benchmark_features].values
-    X_test_bench = test_df[benchmark_features].values
-    
-    models_to_compare = [
-        ('Logistic Regression', 'logistic_regression', False),
-        ('Balanced Logistic Regression', 'logistic_regression', True),
-        ('Random Forest', 'random_forest', False),
-        ('Extra Trees', 'extra_trees', False),
-        ('HistGradientBoosting', 'hist_gbm', False),
-        ('XGBoost', 'xgboost', False),
-        ('Multi-Layer Perceptron (MLP)', 'mlp', False),
-    ]
-    
-    fitted_models = {}
-    model_probs = {}
-    
-    for display_name, m_key, balanced in models_to_compare:
-        print(f"\nTraining {display_name}...")
-        model = get_model(m_key, balanced=balanced)
-        model.fit(X_train_bench, y_train)
-        
-        y_pred = model.predict(X_test_bench)
-        y_prob = model.predict_proba(X_test_bench)
-        
-        fitted_models[m_key] = model
-        model_probs[m_key] = y_prob
-        
-        metrics = evaluate_predictions(y_test, y_pred, y_prob, experiment_name=f"E9_{display_name}")
-        metrics['Features'] = 'E9_Expanded_Market_Fatigue'
-        metrics['Model'] = display_name
-        metrics['Num_Features'] = len(benchmark_features)
-        print_evaluation_summary(metrics)
-        
-        cm_path = f"results/figures/confusion_matrices/E9_{m_key}.png"
-        plot_and_save_confusion_matrix(metrics['Confusion_Matrix'], f"E9: {display_name}", cm_path)
-        
-        row_dict = {k: v for k, v in metrics.items() if k != 'Confusion_Matrix'}
-        results_list.append(row_dict)
-        
-    # -------------------------------------------------------------
-    # PHASE 15 & 16: DRAW PREDICTION & THRESHOLD CALIBRATION
-    # -------------------------------------------------------------
-    print("\n" + "=" * 80)
-    print("DRAW PREDICTION & PROBABILITY THRESHOLD TUNING (Phase 15 & 16)")
-    print("=" * 80)
-    
-    xgb_probs = model_probs['xgboost']
-    for mult in [1.0, 1.15, 1.25, 1.35, 1.5]:
-        calib_preds = tune_draw_threshold(xgb_probs, draw_multiplier=mult)
-        metrics = evaluate_predictions(y_test, calib_preds, xgb_probs, experiment_name=f"Draw_Calib_XGB_mult_{mult:.2f}")
-        metrics['Features'] = 'E9_Expanded_Market_Fatigue'
-        metrics['Model'] = f"XGBoost (Draw Multiplier={mult:.2f})"
-        metrics['Num_Features'] = len(benchmark_features)
-        print_evaluation_summary(metrics)
-        
-        if mult in [1.0, 1.25, 1.5]:
-            cm_path = f"results/figures/confusion_matrices/Draw_Calib_mult_{mult:.2f}.png"
-            plot_and_save_confusion_matrix(metrics['Confusion_Matrix'], f"Draw Calibration (Mult={mult:.2f})", cm_path)
-            
-        row_dict = {k: v for k, v in metrics.items() if k != 'Confusion_Matrix'}
-        results_list.append(row_dict)
-        
-    # -------------------------------------------------------------
-    # PHASE 19: ENSEMBLE MODEL (E10)
-    # -------------------------------------------------------------
-    print("\n" + "=" * 80)
-    print("RUNNING DIVERSE SOFT-VOTING ENSEMBLE EXPERIMENTS")
-    print("=" * 80)
-    
-    ensemble = SoftVotingEnsemble(
-        models=[
-            fitted_models['extra_trees'],
-            fitted_models['xgboost'],
-            fitted_models['hist_gbm'],
-            fitted_models['random_forest'],
-            fitted_models['logistic_regression']
-        ],
-        weights=[0.35, 0.20, 0.20, 0.15, 0.10]
-    )
-    y_pred_ens = ensemble.predict(X_test_bench)
-    y_prob_ens = ensemble.predict_proba(X_test_bench)
-    
-    metrics = evaluate_predictions(y_test, y_pred_ens, y_prob_ens, experiment_name="Ensemble_5Models_E9")
-    metrics['Features'] = 'E9_Expanded_Market_Fatigue'
-    metrics['Model'] = "Soft Voting Ensemble (ET+XGB+HGB+RF+LR)"
-    metrics['Num_Features'] = len(benchmark_features)
-    print_evaluation_summary(metrics)
-    
-    cm_path = "results/figures/confusion_matrices/Ensemble_5Models_E9.png"
-    plot_and_save_confusion_matrix(metrics['Confusion_Matrix'], "Ensemble: 5 Models on E9 Features", cm_path)
-    
-    row_dict = {k: v for k, v in metrics.items() if k != 'Confusion_Matrix'}
-    results_list.append(row_dict)
-    
-    # Also evaluate calibrated ensemble
-    y_pred_ens_calib = tune_draw_threshold(y_prob_ens, draw_multiplier=1.20)
-    metrics_calib = evaluate_predictions(y_test, y_pred_ens_calib, y_prob_ens, experiment_name="Ensemble_5Models_DrawCalibrated")
-    metrics_calib['Features'] = 'E9_Expanded_Market_Fatigue'
-    metrics_calib['Model'] = "Calibrated Ensemble (Mult=1.20)"
-    metrics_calib['Num_Features'] = len(benchmark_features)
-    print_evaluation_summary(metrics_calib)
-    
-    cm_path = "results/figures/confusion_matrices/Ensemble_5Models_Calibrated.png"
-    plot_and_save_confusion_matrix(metrics_calib['Confusion_Matrix'], "Calibrated Ensemble (Draw Mult=1.20)", cm_path)
-    
-    row_dict = {k: v for k, v in metrics_calib.items() if k != 'Confusion_Matrix'}
-    results_list.append(row_dict)
-    
-    # -------------------------------------------------------------
-    # SELECTIVE CLASSIFICATION & CONFIDENCE TIERS (ROAD TO 70%+)
-    # -------------------------------------------------------------
-    from src.models import evaluate_confidence_tiers, evaluate_double_chance
-    print("\n" + "=" * 80)
-    print("SELECTIVE PREDICTION: CONFIDENCE-TIER EVALUATION (2023 Test Set)")
-    print("=" * 80)
-    conf_tiers_test = evaluate_confidence_tiers(y_test, y_prob_ens)
-    conf_df_test = pd.DataFrame(conf_tiers_test)
-    conf_df_test['Evaluation_Set'] = '2023 Benchmark Test'
-    print(conf_df_test.to_string(index=False))
-    
-    # Double chance evaluation
-    dc_test = evaluate_double_chance(y_test, y_prob_ens)
-    print(f"\nDouble Chance (1X, X2, 12) Test Accuracy: {dc_test['accuracy_pct']}% ({dc_test['correct_matches']}/{dc_test['total_matches']})")
+    os.chdir(ROOT)
+    out = Path('results')
+    out.mkdir(exist_ok=True)
+    raw_path = Path('data/raw/Matches.csv')
+    raw = load_raw_dataset(str(raw_path))
+    clean = clean_and_filter_matches(raw)
+    Path('data/processed').mkdir(parents=True, exist_ok=True)
+    clean.to_csv('data/processed/cleaned_matches_5leagues.csv', index=False)
+    frame = compute_all_features(clean)
+    train, test, holdout = create_chronological_splits(frame)
+    if train.empty or test.empty or holdout.empty:
+        raise ValueError('The input must contain training, 2023 test, and post-2023 holdout matches.')
+    holdout_label = f"{holdout.MatchDate.min():%Y-%m-%d} to {holdout.MatchDate.max():%Y-%m-%d} Holdout"
+    print('Split sizes:', len(train), len(test), len(holdout), flush=True)
+    print('Holdout:', holdout_label, flush=True)
+    records, predictions, metadata, matrix_paths = [], {}, {}, []
+    features = FEATURE_GROUPS['E9_Expanded_Market_Fatigue']
+    X_train, y_train = train[features].values, train.target.values
+    X_test, X_holdout = test[features].values, holdout[features].values
 
-    # -------------------------------------------------------------
-    # UNSEEN HOLDOUT EVALUATION (2024 - 2026)
-    # -------------------------------------------------------------
-    print("\n" + "=" * 80)
-    print("EVALUATING BEST ENSEMBLE ON UNSEEN HOLDOUT PERIOD (2024 - 2026)")
-    print("=" * 80)
-    X_holdout_bench = holdout_df[benchmark_features].values
-    y_pred_holdout = ensemble.predict(X_holdout_bench)
-    y_prob_holdout = ensemble.predict_proba(X_holdout_bench)
-    
-    holdout_metrics = evaluate_predictions(y_holdout, y_pred_holdout, y_prob_holdout, experiment_name="Holdout_2024_2026_Ensemble")
-    holdout_metrics['Features'] = 'E9_Expanded_Market_Fatigue'
-    holdout_metrics['Model'] = "Soft Voting Ensemble (2024-2026 Holdout)"
-    holdout_metrics['Num_Features'] = len(benchmark_features)
-    print_evaluation_summary(holdout_metrics)
-    
-    cm_path = "results/figures/confusion_matrices/Holdout_2024_2026_Ensemble.png"
-    plot_and_save_confusion_matrix(holdout_metrics['Confusion_Matrix'], "Holdout (2024-2026) Ensemble", cm_path)
-    
-    row_dict = {k: v for k, v in holdout_metrics.items() if k != 'Confusion_Matrix'}
-    results_list.append(row_dict)
-    
-    # Holdout confidence tiers
-    print("\n" + "=" * 80)
-    print("SELECTIVE PREDICTION: CONFIDENCE-TIER EVALUATION ON HOLDOUT (2024-2026)")
-    print("=" * 80)
-    conf_tiers_holdout = evaluate_confidence_tiers(y_holdout, y_prob_holdout)
-    conf_df_holdout = pd.DataFrame(conf_tiers_holdout)
-    conf_df_holdout['Evaluation_Set'] = '2024-2026 Holdout'
-    print(conf_df_holdout.to_string(index=False))
-    
-    dc_holdout = evaluate_double_chance(y_holdout, y_prob_holdout)
-    print(f"\nDouble Chance (1X, X2, 12) Holdout Accuracy: {dc_holdout['accuracy_pct']}% ({dc_holdout['correct_matches']}/{dc_holdout['total_matches']})")
+    def record(exp, model_name, group, frame, probs, figure_name, pred=None):
+        truth = frame.target.values
+        pred = probs.argmax(axis=1) if pred is None else pred
+        metrics = evaluate_predictions(truth, pred, probs, exp)
+        cm = metrics.pop('Confusion_Matrix')
+        metrics.update(Features=group, Model=model_name, Num_Features=len(FEATURE_GROUPS['E9_Expanded_Market_Fatigue' if 'SMOTE' in group else group]),
+                       Matches=len(frame), Date_Min=frame.MatchDate.min().strftime('%Y-%m-%d'),
+                       Date_Max=frame.MatchDate.max().strftime('%Y-%m-%d'))
+        records.append(metrics)
+        predictions[exp + '__y'] = truth.astype(np.int8)
+        predictions[exp + '__pred'] = np.asarray(pred, dtype=np.int8)
+        predictions[exp + '__prob'] = np.asarray(probs, dtype=np.float64)
+        metadata[exp] = {'figure': figure_name, 'model': model_name, 'split': '2023 Benchmark Test' if frame is test else holdout_label}
+        plot_and_save_confusion_matrix(cm, f'{model_name}\n{metadata[exp]["split"]} (n={len(frame):,})', str(out / 'figures/confusion_matrices' / figure_name))
+        matrix_paths.append('figures/confusion_matrices/' + figure_name)
+        print(f'{exp}: accuracy={metrics["Accuracy"]:.6f}, macro F1={metrics["Macro_F1"]:.6f}', flush=True)
 
-    # Combine and save confidence tiers
-    all_conf_df = pd.concat([conf_df_test, conf_df_holdout], ignore_index=True)
-    all_conf_df.to_csv('results/confidence_tiers_evaluation.csv', index=False)
-    print("\nSaved confidence tier results to results/confidence_tiers_evaluation.csv")
+    # Feature progression; cached E9 Extra Trees also serves the benchmark.
+    progression = {}
+    for group in FEATURE_GROUPS:
+        key = 'logistic_regression' if group.startswith(('E0_', 'E1_', 'E2_')) else 'extra_trees' if group.startswith('E9_') else 'xgboost'
+        model = get_model(key)
+        model.fit(train[FEATURE_GROUPS[group]].values, y_train)
+        probs = model.predict_proba(test[FEATURE_GROUPS[group]].values)
+        progression[group] = model
+        record(f'{group}_{key}', key, group, test, probs, f'{group}_{key}.png')
 
-    # Save overall experiment tracking CSV
-    results_df = pd.DataFrame(results_list)
-    results_df.to_csv('results/experiment_results.csv', index=False)
-    print("\nSaved all experiment results to results/experiment_results.csv")
-    print("\nSaved all experiment results to results/experiment_results.csv")
-    
-    print("\nTop 5 Experiments by Accuracy:")
-    print(results_df.sort_values(by='Accuracy', ascending=False)[['Experiment', 'Model', 'Accuracy', 'Macro_F1', 'Draw_Recall']].head(5))
-    
-    print("\nTop 5 Experiments by Macro F1:")
-    print(results_df.sort_values(by='Macro_F1', ascending=False)[['Experiment', 'Model', 'Accuracy', 'Macro_F1', 'Draw_Recall']].head(5))
-    
+    fitted, test_probs = {}, {}
+    for name, key, balanced in MODELS:
+        # Never let balanced LR overwrite the ordinary LR member.
+        storage_key = 'balanced_logistic_regression' if balanced else key
+        model = progression['E9_Expanded_Market_Fatigue'] if key == 'extra_trees' else get_model(key, balanced=balanced)
+        if key != 'extra_trees':
+            model.fit(X_train, y_train)
+        fitted[storage_key] = model
+        test_probs[storage_key] = model.predict_proba(X_test)
+        record('E9_' + name, name, 'E9_Expanded_Market_Fatigue', test, test_probs[storage_key], 'E9_' + storage_key + '.png')
+
+    for mult in (1.0, 1.15, 1.25, 1.35, 1.5):
+        probs = test_probs['xgboost']
+        record(f'Draw_Calib_XGB_mult_{mult:.2f}', f'XGBoost (draw multiplier {mult:.2f})', 'E9_Expanded_Market_Fatigue', test,
+               probs, f'Draw_Calib_mult_{mult:.2f}.png', tune_draw_threshold(probs, mult))
+
+    ensemble = make_ensemble(fitted)
+    probs_test, probs_holdout = ensemble.predict_proba(X_test), ensemble.predict_proba(X_holdout)
+    record('Ensemble_5Models_E9', 'Five-model ensemble', 'E9_Expanded_Market_Fatigue', test, probs_test, 'Ensemble_5Models_E9.png')
+    record('Ensemble_5Models_DrawCalibrated', 'Ensemble (draw multiplier 1.20)', 'E9_Expanded_Market_Fatigue', test, probs_test,
+           'Ensemble_5Models_Calibrated.png', tune_draw_threshold(probs_test, 1.20))
+    record('Holdout_Ensemble', 'Five-model ensemble', 'E9_Expanded_Market_Fatigue', holdout, probs_holdout, 'Holdout_Ensemble.png')
+    export_predictions(test, probs_test, out / 'error_analysis_test2023.csv')
+    export_predictions(holdout, probs_holdout, out / 'predictions_holdout.csv')
+
+    # SMOTE is fitted on training rows only; test and holdout stay untouched.
+    imputer = SimpleImputer(strategy='median')
+    X_smote, y_smote = SMOTE(random_state=42).fit_resample(imputer.fit_transform(X_train), y_train)
+    smote_models = {}
+    for name, key, balanced in MODELS:
+        if balanced:
+            continue
+        model = get_model(key)
+        model.fit(X_smote, y_smote)
+        smote_models[key] = model
+        record('SMOTE_' + key, name + ' (SMOTE)', 'E9_Expanded_Market_Fatigue (SMOTE)', test,
+               model.predict_proba(X_test), 'SMOTE_' + key + '.png')
+    smote_ensemble = make_ensemble(smote_models)
+    for subset, X, exp, filename in ((test, X_test, 'SMOTE_Ensemble_5Models_E9', 'SMOTE_Ensemble_5Models_E9.png'),
+                                     (holdout, X_holdout, 'SMOTE_Holdout_Ensemble', 'SMOTE_Holdout_Ensemble.png')):
+        record(exp, 'Five-model ensemble (SMOTE)', 'E9_Expanded_Market_Fatigue (SMOTE)', subset,
+               smote_ensemble.predict_proba(X), filename)
+
+    results = pd.DataFrame(records)
+    results.to_csv(out / 'experiment_results.csv', index=False)
+    results[results.Experiment.str.startswith('SMOTE_')].to_csv(out / 'smote_experiment_results.csv', index=False)
+    np.savez_compressed(out / 'predictions.npz', **predictions)
+    (out / 'prediction_index.json').write_text(json.dumps(metadata, indent=2) + '\n')
+    pd.DataFrame({'Feature': features, 'XGBoost': fitted['xgboost'].named_steps['clf'].feature_importances_,
+                  'RandomForest': fitted['random_forest'].named_steps['clf'].feature_importances_}) \
+        .sort_values('XGBoost', ascending=False).to_csv(out / 'feature_importances.csv', index=False)
+
+    packages = ('numpy', 'pandas', 'scipy', 'scikit-learn', 'xgboost', 'imbalanced-learn', 'matplotlib', 'seaborn', 'joblib', 'threadpoolctl')
+    manifest = {
+        'run_utc': datetime.now(timezone.utc).isoformat(), 'python': platform.python_version(),
+        'platform': platform.platform(), 'numerical_threads': 4, 'estimator_jobs': 4, 'packages': {p: importlib.metadata.version(p) for p in packages},
+        'input': {'file': str(raw_path), 'sha256': sha256(raw_path), 'raw_rows': len(raw)},
+        'clean': split_description(clean), 'train': split_description(train), 'test': split_description(test),
+        'holdout': split_description(holdout), 'holdout_label': holdout_label,
+        'leagues': {k: int(v) for k, v in clean.Division.value_counts().items()},
+        'feature_group': 'E9_Expanded_Market_Fatigue', 'features': features,
+        'ensemble': {'members': list(ENSEMBLE_KEYS), 'weights': list(ENSEMBLE_WEIGHTS), 'balanced_lr': False},
+        'smote': {'random_state': 42, 'train_only': True, 'impute_before_resampling': True, 'scaled_before_resampling': False},
+        'source_sha256': {str(p): sha256(p) for p in sorted(Path('src').glob('*.py'))},
+    }
+    (out / 'run_manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    # All diagnostics consume these saved predictions; none independently retrain.
+    from src.error_analysis import run_error_analysis
+    from src.plot_roc_curves import generate_all_roc_curves
+    from src.plot_feature_importance import plot_importances
+    from src.refresh_results import refresh_results
+    run_error_analysis()
+    generate_all_roc_curves()
+    plot_importances()
+    refresh_results()
+    outputs = {str(p.relative_to(out)): sha256(p) for p in sorted(out.rglob('*')) if p.is_file() and p.name != 'artifact_hashes.json'}
+    (out / 'artifact_hashes.json').write_text(json.dumps(outputs, indent=2) + '\n')
+    print('Complete: tables, predictions, figures, README, and research results regenerated.', flush=True)
+
 
 if __name__ == '__main__':
-    run_complete_experiments()
+    with threadpool_limits(limits=4):
+        run_complete_experiments()

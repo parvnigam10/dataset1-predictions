@@ -1,322 +1,270 @@
-# Football Match Outcome Prediction --- Dataset 1
-## Machine Learning System for 3-Way Match Outcome Classification Across 5 Major European Leagues (2000–2026)
+# Football Match Outcome Prediction — Dataset 1
 
-This repository contains an end-to-end, leak-free machine-learning system for predicting association football match outcomes (`H = Home Win`, `D = Draw`, `A = Away Win`) using historical match data from **Dataset 1** (`data/raw/Matches.csv`, ~238,000 matches from 2000 to 2026).
+Verified results generated on **2026-10-30** from the recorded input snapshot.
 
-The implementation strictly synthesizes the methodological specifications from the project README and the research paper by Adam Gábor (2025), *Club Football Match Data from 27 leagues worldwide, 2000–2025*.
+## Data and evaluation scope
 
----
+The verified input contains **230,557 raw rows** and **43,708 selected five-league matches**. The selected dates are **2000-07-28 to 2025-05-25**.
 
-## 1. Project Directory Structure
+| Partition | Matches | First date | Last date |
+| --- | --- | --- | --- |
+| Training | 39138 | 2000-07-28 | 2022-12-31 |
+| Benchmark test | 1919 | 2023-01-01 | 2023-12-31 |
+| Temporal holdout | 2651 | 2024-01-01 | 2025-05-25 |
 
-```text
-d:/garv_football/
-├── data/
-│   ├── raw/
-│   │   └── Matches.csv                       # Raw historical match dataset (238,858 matches)
-│   └── processed/
-│       └── cleaned_matches_5leagues.csv      # 5 major leagues dataset (45,559 matches)
-├── notebooks/
-│   └── Dataset1_Predictor.ipynb              # Fully executed 36-cell story-driven Jupyter Notebook
-├── results/
-│   ├── figures/
-│   │   ├── confusion_matrices/               # Confusion matrix heatmaps for all models
-│   │   ├── feature_importance/               # Top 15 feature importance bar plots (XGBoost & RF)
-│   │   └── roc_curves/                       # One-vs-Rest ROC curves & multi-model comparisons
-│   ├── experiment_results.csv                # Complete experimental tracking table (33 experiments)
-│   ├── roc_auc_metrics.csv                   # Numerical One-vs-Rest ROC-AUC evaluation metrics
-│   ├── smote_vs_baseline_comparison.csv      # Direct comparison: Without SMOTE vs With SMOTE
-│   ├── feature_importances.csv               # Ranked feature importance values
-│   └── error_analysis_test2023.csv           # Match-by-match test error slice dataset
-├── src/
-│   ├── __init__.py
-│   ├── data_loader.py                        # Ingestion, cleaning, chronological splitting
-│   ├── features.py                           # Strict pre-match rolling feature engineering
-│   ├── models.py                             # In-memory pipelines, soft ensemble, draw tuner
-│   ├── evaluate.py                           # Accuracy, F1, per-class recall, confusion matrix
-│   ├── run_pipeline.py                       # Automated experiment runner
-│   ├── run_smote_experiments.py              # SMOTE class balancing pipeline
-│   ├── plot_feature_importance.py            # Feature importance extraction
-│   ├── plot_roc_curves.py                    # Multi-class OvR ROC curves & AUC computation
-│   ├── error_analysis.py                     # Slice-based evaluation across tiers
-│   ├── build_notebook.py                     # Programmatic notebook generator
-│   └── execute_notebook.py                   # In-place headless notebook execution runner
-├── README.md                                 # Full project documentation and quickstart
-└── requirements.txt                          # Project dependency specifications
-```
+| Division | Selected historical matches |
+| --- | --- |
+| D1 | 7522 |
+| E0 | 9410 |
+| F1 | 8756 |
+| I1 | 9012 |
+| SP1 | 9008 |
 
-*(Note: Models are trained and compared entirely in-memory as instructed, avoiding large binary checkpoint dumps to disk while logging all metrics and figures).*
+The input is not bundled in Git. Place your own copy at `data/raw/Matches.csv`. The exact snapshot used here has SHA-256:
 
----
+`eac9d0096993c8a5705f724e0ddc5513f71aca29058106182bc9a2c6340bcc0e`
 
-## 2. Methodology & Leakage-Free Integrity
+The available holdout has **2,651 matches**, ending **2025-05-25**. The earlier claim of 4,502 holdout matches extending into 2026 is superseded; this run does not evaluate 2026 fixtures.
 
-1. **Focus Leagues (5 Major European Leagues)**:
-   - `D1` (Germany Bundesliga, 7,837 matches)
-   - `E0` (England Premier League, 9,810 matches)
-   - `F1` (France Ligue 1, 9,081 matches)
-   - `I1` (Italy Serie A, 9,412 matches)
-   - `SP1` (Spain La Liga, 9,419 matches)
-   - Total: **45,559 matches** spanning from **2000-07-28 to 2026-09-03**.
+## Method
 
-2. **Full Historical Timeline**:
-   We retain the full historical period from 2000 onwards so that team histories, Elo ratings, and rolling statistics mature over decades without cold-start bias.
+The target encoding is H=0, D=1, A=2. Training uses matches through 2022; 2023 is the benchmark; all later available matches form the holdout. Model parameters are fixed by `src/models.py`; the random seed is 42. Rolling goals, shots, corners, cards, venue statistics, rest, and H2H use past fixtures. Supplied Elo/form and closing odds are assumed to be available before kickoff; their upstream provenance is not independently established by this code.
 
-3. **Strict Zero Lookahead Leakage**:
-   Every rolling feature (goals scored/conceded, form points, shots, corners, venue win rates) for match $t$ is calculated strictly using matches completed *before* match $t$.
+The E9 feature set contains 56 features, including market probabilities, Elo gaps, rolling form and goals, rest/congestion, and H2H. The weighted ensemble combines **Extra Trees 0.35, XGBoost 0.20, HistGradientBoosting 0.20, Random Forest 0.15, and ordinary logistic regression 0.10**. Balanced LR is a separate benchmark and cannot overwrite the ordinary LR fit.
 
-4. **Chronological Time-Based Evaluation**:
-   - **Training Set (2000–2022)**: 39,138 matches.
-   - **Benchmark Test Set (2023)**: 1,919 matches (aligned with benchmark literature).
-   - **Future Holdout Set (2024–2026)**: 4,502 unseen future matches.
+SMOTE resamples only imputed training data. This preserves the existing experimental method: distance-based SMOTE is applied before scaling, which can make large-scale features dominate neighbor selection; a scale-aware variant requires a separately validated experiment. Test and holdout data are never resampled. The draw multiplier changes the decision rule, not the stored raw probability estimates, and is not evidence of probability calibration.
 
----
+Feature sets, draw multipliers and confidence thresholds are reported descriptively. Their comparison on the benchmark is not a separate validation procedure, and repeated inspection of the holdout means it should not be treated as a pristine final test. Empirical 54% results do not establish a mathematical accuracy ceiling or prove that higher results imply leakage.
 
-## 3. Features Implemented from Research Paper & Specifications
+## Feature progression
 
-### Table 7 Features from Adam Gábor (2025)
-- **Double Chance Market Odds**:
-  - `1XOdd`: Combined odds for Home Win or Draw $= \frac{1}{\frac{1}{\text{OddHome}} + \frac{1}{\text{OddDraw}}}$
-  - `X2Odd`: Combined odds for Away Win or Draw $= \frac{1}{\frac{1}{\text{OddAway}} + \frac{1}{\text{OddDraw}}}$
-  - `12Odd`: Combined odds for Home Win or Away Win $= \frac{1}{\frac{1}{\text{OddHome}} + \frac{1}{\text{OddAway}}}$
-- **Draw Likelihood Metric**:
-  - Derived from $\text{NormProbDraw}$, $\text{EloDifference}$, and $\text{Form5Difference}$:
-    $$\text{DrawLikelihood} = \text{NormProbDraw} \times \exp\left(-\frac{|\text{EloDiff}|}{400}\right) \times \exp\left(-\frac{|\text{Form5Diff}|}{15}\right)$$
-- **Game Dominance Index**:
-  $$\text{GameDominanceIndex} = \frac{\text{CornersDiffL5} + \text{ShotsDiffL5}}{2}$$
-- **Card Points Disparity**:
-  $$\text{CardPoints} = \text{YellowCards} + 3.0 \times \text{RedCards}$$
-  *(Using the multiplier of 3.0 explicitly recommended in Table 7)*
-- **Tempo & Territorial Pressure**:
-  - `ShotsTotalL5` $= \text{HomeShotsL5} + \text{AwayShotsL5}$
-  - `CornersTotalL5` $= \text{HomeCornersL5} + \text{AwayCornersL5}$
+| Experiment | Model | Features | Accuracy | Macro F1 | Draw recall |
+| --- | --- | --- | --- | --- | --- |
+| E0 | logistic_regression | 5 | 46.12% | 0.2104 | 0.00% |
+| E1 | logistic_regression | 11 | 53.10% | 0.3842 | 0.00% |
+| E2 | logistic_regression | 20 | 53.15% | 0.3845 | 0.00% |
+| E3 | xgboost | 35 | 53.36% | 0.3877 | 0.42% |
+| E4 | xgboost | 44 | 53.41% | 0.3885 | 0.21% |
+| E5 | xgboost | 63 | 53.52% | 0.3924 | 0.21% |
+| E6 | xgboost | 71 | 54.40% | 0.4123 | 1.87% |
+| E7 | xgboost | 28 | 53.52% | 0.4025 | 1.04% |
+| E8 | xgboost | 39 | 53.62% | 0.4080 | 2.08% |
+| E9 | extra_trees | 56 | 54.19% | 0.3970 | 0.00% |
 
-### Section 32 Features from Project Specifications
-- **Opponent-Strength Adjusted Performance**:
-  - `HomeOpponentAdjGoals5` $= \text{HomeGoalsScored5} \times \left(\frac{\text{HomeAvgOpponentEloL5}}{1500}\right)$
-  - `AwayOpponentAdjGoals5` $= \text{AwayGoalsScored5} \times \left(\frac{\text{AwayAvgOpponentEloL5}}{1500}\right)$
-  - `OpponentAdjGoalsDiff` $= \text{HomeOpponentAdjGoals5} - \text{AwayOpponentAdjGoals5}$
-  - `OpponentAdjFormDiff` $= \text{OpponentAdjFormHome} - \text{OpponentAdjFormAway}$
-- **Attack vs Defence Matchups**:
-  - `HomeAttack_vs_AwayDefence` $= \text{HomeGoalsScored5} - \text{AwayGoalsConceded5}$
-  - `AwayAttack_vs_HomeDefence` $= \text{AwayGoalsScored5} - \text{HomeGoalsConceded5}$
-  - `NetMatchupExpectation` $= \text{HomeAttack_vs_AwayDefence} - \text{AwayAttack_vs_HomeDefence}$
-- **Multi-Horizon Recency Momentum**:
-  - `RecencyMomentumDiff` $= (\text{HomeGoalsScored3} - \text{HomeGoalsScored10}) - (\text{AwayGoalsScored3} - \text{AwayGoalsScored10})$
+These are measured comparisons for the recorded data snapshot. Adding features does not guarantee an accuracy increase; results also depend on the chosen classifier.
 
-### Newly Engineered Pre-Match Fatigue, Market Handicap & H2H Features ($E9$)
-- **Pre-Match Rest & Congestion**:
-  - `DaysRestHome`, `DaysRestAway`: Days elapsed since previous match (clipped between 2 and 30 days).
-  - `RestAdvantage` $= \text{DaysRestHome} - \text{DaysRestAway}$
-  - `CongestedHome`, `CongestedAway`: Binary fatigue flag ($\le 3.5$ days rest).
-- **Head-to-Head (H2H) Historical Matchup Record**:
-  - `H2H_HomeWinRate`: Prior win rate of home team against away opponent across all previous encounters.
-  - `H2H_DrawRate`: Prior draw frequency between the two sides.
-  - `H2H_GoalDiff`: Historical average goal margin in past encounters.
-- **Market Asian Handicap & Goal Line Totals**:
-  - `MarketHandiSize`: Asian handicap spread (pre-match expected goal difference).
-  - `MarketHandiDiscrepancy`: Divergence between Asian handicap and theoretical Elo spread.
-  - `MarketImpliedOver25`, `MarketGoalExpectancyRatio`: Bookmaker implied over/under 2.5 goal expectancy.
-  - `OddsSpreadAway`: Spread between maximum market odds and baseline odds (`MaxAway - OddAway`).
-  - Interaction Terms: `EloDiff_x_ImpliedOver25`, `NormHome_x_NormDraw`.
+## Model benchmark (2023, 1,919 matches)
 
----
+| Model | Accuracy | Macro F1 | Home recall | Draw recall | Away recall |
+| --- | --- | --- | --- | --- | --- |
+| Logistic Regression | 53.88% | 0.4035 | 80.00% | 0.83% | 58.23% |
+| Balanced Logistic Regression | 49.50% | 0.4594 | 54.12% | 22.66% | 65.46% |
+| Random Forest | 54.04% | 0.4030 | 81.24% | 0.83% | 56.78% |
+| Extra Trees | 54.19% | 0.3970 | 83.16% | 0.00% | 54.97% |
+| HistGradientBoosting | 53.62% | 0.4072 | 79.89% | 1.87% | 56.60% |
+| XGBoost | 53.57% | 0.4061 | 80.11% | 1.66% | 56.24% |
+| Multi-Layer Perceptron (MLP) | 54.19% | 0.4142 | 81.02% | 2.70% | 56.06% |
 
-## 4. Experimental Progression Results ($E0 \to E9$)
+![Benchmark accuracy and Macro F1](results/figures/summary/benchmark_comparison.png)
 
-Evaluated on the standardized **2023 Benchmark Test Set (1,919 matches)**:
+Accuracy measures the share of correct outcomes. Macro F1 gives H, D, and A equal weight; low draw recall can therefore produce a low Macro F1 despite reasonable overall accuracy.
 
-| Exp ID | Feature Set | Model | Features | Accuracy | Macro F1 | Draw Recall | Key Takeaway |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **E0** | Baseline | Logistic Regression | 5 | 46.12% | 0.2104 | 0.00% | Trivial majority baseline (predicts all Home) |
-| **E1** | + Elo Ratings | Logistic Regression | 11 | 53.10% | 0.3842 | 0.00% | **+6.98% leap**: Team quality separation |
-| **E2** | + Recent Form | Logistic Regression | 20 | 53.15% | 0.3845 | 0.00% | Form momentum adds modest short-term signal |
-| **E3** | + Historical Goals | XGBoost | 35 | 53.47% | 0.3877 | 0.21% | Attack vs defence scoring differentials |
-| **E4** | + Venue History | XGBoost | 44 | 53.31% | 0.3884 | 0.42% | Home-only vs away-only win rates |
-| **E5** | + Match Stats | XGBoost | 63 | 53.10% | 0.3893 | 0.42% | Rolling shots, corners, cards & dominance |
-| **E6** | + Betting Odds | XGBoost | 71 | **54.14%** | **0.4125** | 2.08% | Market consensus lifts accuracy to 54.14% |
-| **E7** | Selected Features | XGBoost | 28 | **53.73%** | **0.4066** | 1.46% | Non-collinear compact feature set |
-| **E8** | Research Paper Advanced | XGBoost | 39 | **53.36%** | **0.4021** | 1.46% | Table 7 & opponent-adjusted set |
-| **E9** | Expanded Market & Fatigue | Extra Trees | 56 | **54.46%** | **0.4002** | 0.00% | Asian handicap, totals, rest days & H2H |
+## Ensemble and temporal holdout
 
----
+| Evaluation | Matches | Accuracy | Macro F1 | Draw recall |
+| --- | --- | --- | --- | --- |
+| 2023 ensemble | 1919 | 54.25% | 0.4019 | 0.42% |
+| 2023 ensemble, draw multiplier 1.20 | 1919 | 52.89% | 0.4229 | 6.24% |
+| 2024-01-01 to 2025-05-25 Holdout | 2651 | 53.90% | 0.4092 | 0.44% |
+| 2023 SMOTE ensemble | 1919 | 52.37% | 0.4494 | 11.85% |
+| Holdout SMOTE ensemble | 2651 | 53.53% | 0.4634 | 11.63% |
 
-## 5. Multi-Model Benchmark Comparison ($E9$)
+The baseline ensemble obtains **54.25% accuracy and 0.4019 Macro F1** on all 2023 fixtures. It obtains **53.90% accuracy** on the available holdout. These measurements describe this snapshot and do not prove absence of temporal degradation or probability calibration.
 
-Tested on the comprehensive `E9_Expanded_Market_Fatigue` feature set (56 features):
+![2023 normalized confusion matrix](results/figures/summary/confusion_2023_normalized.png)
 
-| Model | Accuracy | Macro F1 | Home Recall | Draw Recall | Away Recall |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Extra Trees** | **54.46%** | 0.4002 | 84.18% | 0.00% | 54.97% |
-| **Random Forest** | **54.30%** | 0.4040 | 81.35% | 0.83% | 57.69% |
-| **XGBoost** | **54.04%** | **0.4122** | 80.90% | 2.08% | 55.70% |
-| **Logistic Regression** | **53.93%** | 0.4040 | 79.77% | 0.83% | 58.77% |
-| **HistGradientBoosting** | **53.36%** | 0.4039 | 78.42% | 1.46% | 57.87% |
-| **Multi-Layer Perceptron (MLP)** | **53.05%** | 0.3995 | 80.23% | 1.66% | 54.07% |
-| **Balanced Logistic Reg.** | 49.82% | **0.4636** | 54.58% | **23.28%** | 65.10% |
+Rows are actual classes and columns are predicted classes. The diagonal gives per-class recall; the draw row shows the baseline's difficulty predicting draws.
 
----
+![Holdout normalized confusion matrix](results/figures/summary/confusion_holdout_normalized.png)
 
-## 6. Top Feature Importances
+The holdout uses the same trained ensemble, with histories updated sequentially from earlier completed matches. Its dates and sample count differ from the former 2026 claim.
 
-Ranked across all 56 features in the expanded feature set:
+## Draw decision multiplier (XGBoost)
 
-| Rank | Feature | XGBoost Weight | RandomForest Gini | Domain Interpretation |
-| :---: | :--- | :---: | :---: | :--- |
-| **1** | `NormProbHome` | 0.2233 | 0.0805 | Normalized market probability for home win |
-| **2** | `OddsRatio_H_A` | 0.1068 | 0.0800 | Market price ratio between away and home odds |
-| **3** | `NormProbAway` | 0.1038 | 0.0672 | Normalized market probability for away win |
-| **4** | `X2Odd` | **0.0600** | 0.0791 | **Table 7 Double Chance (Away or Draw)** |
-| **5** | `1XOdd` | **0.0433** | 0.0789 | **Table 7 Double Chance (Home or Draw)** |
-| **6** | `NormProbDraw` | 0.0297 | 0.0266 | Market draw expectation |
-| **7** | `NormHome_x_NormDraw` | **0.0246** | 0.0376 | Non-linear interaction between home & draw |
-| **8** | `12Odd` | **0.0189** | 0.0179 | **Table 7 Double Chance (Either Team Win)** |
-| **9** | `MarketHandiSize` | **0.0172** | 0.0300 | **Asian Handicap expected goal margin** |
-| **10** | `OddsSpreadAway` | **0.0100** | 0.0128 | Best market price variance for away team |
-| **11** | `EloAdvantage` | 0.0099 | 0.0397 | Normalized team quality gap ($\text{EloDiff} / \text{EloTotal}$) |
-| **12** | `MarketHandiDiscrepancy` | **0.0099** | 0.0208 | Divergence between market handicap & Elo |
-| **13** | `GameDominanceIndex` | **0.0096** | 0.0148 | **Table 7 Combined Corners & Shots Dominance** |
-| **14** | `EloDiff_x_ImpliedOver25` | **0.0096** | 0.0340 | Quality disparity conditioned on total goals |
-| **15** | `EloDiff` | 0.0093 | 0.0269 | Raw Elo rating differential |
+| XGBoost draw multiplier | Accuracy | Macro F1 | Draw recall |
+| --- | --- | --- | --- |
+| 1.00 | 53.57% | 0.4061 | 1.66% |
+| 1.15 | 52.84% | 0.4204 | 5.20% |
+| 1.25 | 51.64% | 0.4325 | 10.40% |
+| 1.35 | 51.17% | 0.4559 | 21.21% |
+| 1.50 | 49.30% | 0.4645 | 33.89% |
 
----
+Multiplying the draw score can raise draw recall and Macro F1 while lowering accuracy. These are sensitivity results on the benchmark; a deployment multiplier must be selected on separate validation data.
 
-## 7. Draw Prediction & Probability Threshold Calibration
+## SMOTE comparison
 
-In 3-way match prediction, standard $\text{argmax}$ predictions virtually ignore draws because individual draw probability rarely exceeds $0.35$. By scaling the predicted draw probability by multiplier $M$, stakeholders can tune the precision-recall trade-off:
+| Model | Baseline accuracy | SMOTE accuracy | Baseline Macro F1 | SMOTE Macro F1 | Baseline draw recall | SMOTE draw recall |
+| --- | --- | --- | --- | --- | --- | --- |
+| Logistic Regression | 53.88% | 49.40% | 0.4035 | 0.4532 | 0.83% | 19.96% |
+| Random Forest | 54.04% | 51.64% | 0.4030 | 0.4543 | 0.83% | 15.18% |
+| Extra Trees | 54.19% | 50.55% | 0.3970 | 0.4698 | 0.00% | 24.32% |
+| HistGradientBoosting | 53.62% | 53.00% | 0.4072 | 0.4298 | 1.87% | 6.86% |
+| XGBoost | 53.57% | 53.20% | 0.4061 | 0.4161 | 1.66% | 3.12% |
+| Multi-Layer Perceptron (MLP) | 54.19% | 49.61% | 0.4142 | 0.4538 | 2.70% | 23.08% |
+| Five-model ensemble (2023) | 54.25% | 52.37% | 0.4019 | 0.4494 | 0.42% | 11.85% |
+| Five-model ensemble (holdout) | 53.90% | 53.53% | 0.4092 | 0.4634 | 0.44% | 11.63% |
 
-| Multiplier ($M$) | Accuracy | Macro F1 | Home Recall | Draw Recall | Away Recall |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| **1.00 (Default)** | 54.04% | 0.4122 | 80.90% | 2.08% | 55.70% |
-| **1.15** | 53.67% | 0.4284 | 78.42% | 6.44% | 53.89% |
-| **1.25** | 52.27% | 0.4439 | 74.58% | 12.89% | 50.09% |
-| **1.35** | 50.96% | 0.4548 | 70.06% | 20.79% | 46.65% |
-| **1.50** | 49.77% | **0.4686** | 62.71% | **34.93%** | 41.95% |
+The same five-model membership and weights are used for the baseline and SMOTE ensembles. SMOTE changes training balance; it does not improve every metric for every classifier.
 
----
+## Confidence filtering
 
-## 8. Ensemble & Multi-Year Holdout Generalization
+Confidence is the maximum predicted class probability. A threshold accepts only fixtures meeting that score; the displayed accuracy applies only to that subset.
 
-1. **5-Model Soft-Voting Ensemble (ET + XGB + HGB + RF + LR)**:
-   - **2023 Benchmark Test Set**: **54.35% Accuracy**, Macro F1: **0.4090**, Home Recall: **80.68%**, Away Recall: **58.41%**.
-   - **Calibrated Ensemble ($M=1.20$)**: **52.37% Accuracy**, Draw Recall: **9.98%**, Macro F1: **0.4358**.
-2. **Unseen Future Holdout (2024–2026, 4,502 matches)**:
-   - **Overall 3-Way Accuracy**: **53.53%**, Home Recall: **82.54%**, Away Recall: **56.96%**.
-   - Validates zero temporal degradation across three consecutive unseen seasons.
+### 2023 benchmark
 
----
+| Minimum confidence | Selected | Correct | Coverage | Selected accuracy |
+| --- | --- | --- | --- | --- |
+| 0.40 | 1570 | 894 | 81.81% | 56.94% |
+| 0.45 | 1254 | 752 | 65.35% | 59.97% |
+| 0.50 | 970 | 608 | 50.55% | 62.68% |
+| 0.55 | 792 | 515 | 41.27% | 65.03% |
+| 0.60 | 508 | 358 | 26.47% | 70.47% |
+| 0.65 | 376 | 280 | 19.59% | 74.47% |
+| 0.70 | 250 | 200 | 13.03% | 80.00% |
 
-## 9. Achieving 70%+ Accuracy Without Unfair Means
+### 2024-01-01 to 2025-05-25 Holdout
 
-Can a pre-match football outcome model achieve 70%+ accuracy?
+| Minimum confidence | Selected | Correct | Coverage | Selected accuracy |
+| --- | --- | --- | --- | --- |
+| 0.40 | 2215 | 1275 | 83.55% | 57.56% |
+| 0.45 | 1749 | 1072 | 65.98% | 61.29% |
+| 0.50 | 1367 | 884 | 51.57% | 64.67% |
+| 0.55 | 1088 | 726 | 41.04% | 66.73% |
+| 0.60 | 758 | 538 | 28.59% | 70.98% |
+| 0.65 | 576 | 434 | 21.73% | 75.35% |
+| 0.70 | 397 | 305 | 14.98% | 76.83% |
 
-### A. The Information-Theoretic Ceiling on 100% of Matches
-Across the full season schedule of all fixtures, association football is characterized by rare Poisson goals (~2.7 total goals per match) and a ~26% draw frequency. When two evenly matched teams play (e.g. odds 2.70 / 3.20 / 2.80), the Bayes error rate exceeds 60%. Consequently, **no leakage-free model predicting 100% of fixtures can legally exceed ~54%–56% accuracy**. Any claimed 70%+ model on full populations invariably uses post-match in-play data or lookahead aggregates.
 
-### B. The Proven Method: Confidence-Gated Selective Classification
-In real-world quantitative sports syndicates, models do not bet on every match. By evaluating matches above specific confidence thresholds, our ensemble achieves **>70% accuracy** on substantial fixture volume:
+![Accuracy versus coverage](results/figures/summary/accuracy_coverage.png)
 
-#### 2023 Benchmark Test Set (1,919 matches):
-| Confidence Threshold | Matches Selected | Season Coverage | Empirical Accuracy |
-| :---: | :---: | :---: | :---: |
-| $\ge 0.40$ | 1,516 | 79.0% | 57.45% |
-| $\ge 0.45$ | 1,208 | 63.0% | 60.51% |
-| $\ge 0.50$ | 937 | 48.8% | 63.29% |
-| $\ge 0.55$ | 757 | 39.5% | 65.13% |
-| **$\ge 0.60$** | **472** | **24.6%** | **71.61%** |
-| **$\ge 0.65$** | **356** | **18.6%** | **75.28%** |
-| **$\ge 0.70$** | **224** | **11.7%** | **80.80%** |
+Point labels are confidence thresholds. Higher selected accuracy usually comes with fewer accepted matches. These empirical confidence scores have not been demonstrated to be calibrated probabilities.
 
-#### 2024–2026 Unseen Holdout Set (4,502 matches):
-| Confidence Threshold | Matches Selected | Season Coverage | Empirical Accuracy |
-| :---: | :---: | :---: | :---: |
-| $\ge 0.40$ | 3,630 | 80.6% | 57.66% |
-| $\ge 0.45$ | 2,852 | 63.4% | 61.29% |
-| $\ge 0.50$ | 2,198 | 48.8% | 64.83% |
-| $\ge 0.55$ | 1,711 | 38.0% | 67.39% |
-| **$\ge 0.60$** | **1,162** | **25.8%** | **72.46%** |
-| **$\ge 0.65$** | **889** | **19.8%** | **76.60%** |
-| **$\ge 0.70$** | **566** | **12.6%** | **78.27%** |
+## Double chance
 
-### C. The Double Chance Framing (1X, X2, 12)
-Under the Double Chance formulation (predicting whether Home Win/Draw, Away Win/Draw, or Either Team Win occurs):
-- **2023 Benchmark Test Set**: **80.56% Accuracy** (1,546 / 1,919 matches).
-- **2024–2026 Holdout Set**: **79.52% Accuracy** (3,580 / 4,502 matches).
+| Evaluation | Correct / total | Double-chance accuracy |
+| --- | --- | --- |
+| 2023 Benchmark Test | 1,534 / 1,919 | 79.94% |
+| 2024-01-01 to 2025-05-25 Holdout | 2,127 / 2,651 | 80.23% |
 
----
+Double chance accepts two of the three outcomes (1X, X2, or 12). It is a different, easier target than a single H/D/A prediction and must not be presented as 3-way accuracy.
 
-## 10. Receiver Operating Characteristic (ROC) & AUC Analysis
+## ROC-AUC
 
-To evaluate the continuous ranking quality and discriminative capability across all three possible outcomes (`H = Home Win`, `D = Draw`, `A = Away Win`), One-vs-Rest (OvR) Receiver Operating Characteristic (ROC) curves and Area Under the Curve (AUC) scores were computed across all model architectures on both the **2023 Benchmark Test Set (1,919 matches)** and the **2024–2026 Holdout Set (4,502 matches)**.
+| Model | Evaluation | AUC H | AUC D | AUC A | Macro curve AUC | Micro AUC |
+| --- | --- | --- | --- | --- | --- | --- |
+| Extra Trees | 2023 Benchmark Test | 0.7165 | 0.5635 | 0.7169 | 0.6660 | 0.7087 |
+| XGBoost | 2023 Benchmark Test | 0.7147 | 0.5674 | 0.7157 | 0.6663 | 0.7070 |
+| HistGradientBoosting | 2023 Benchmark Test | 0.7123 | 0.5596 | 0.7151 | 0.6627 | 0.7054 |
+| Random Forest | 2023 Benchmark Test | 0.7148 | 0.5598 | 0.7144 | 0.6634 | 0.7066 |
+| Logistic Regression | 2023 Benchmark Test | 0.7160 | 0.5696 | 0.7166 | 0.6678 | 0.7084 |
+| Multi-Layer Perceptron (MLP) | 2023 Benchmark Test | 0.7124 | 0.5611 | 0.7121 | 0.6623 | 0.7034 |
+| Soft-Voting Ensemble (5 Models) | 2023 Benchmark Test | 0.7158 | 0.5640 | 0.7169 | 0.6660 | 0.7084 |
+| Soft-Voting Ensemble (5 Models) | 2024-01-01 to 2025-05-25 Holdout | 0.7392 | 0.5715 | 0.7554 | 0.6890 | 0.7165 |
+| SMOTE Soft-Voting Ensemble | 2023 Benchmark Test | 0.7172 | 0.5646 | 0.7174 | 0.6668 | 0.6961 |
 
-### A. Numerical ROC-AUC Scores Tracking Table
+ROC measures ranking over possible thresholds. Draw AUC near 0.5 indicates weak discrimination. Macro curve AUC is the area under the interpolated mean ROC curve; micro AUC pools the one-vs-rest decisions. AUC does not establish probability calibration or a universal accuracy ceiling.
 
-Extracted directly from [`results/roc_auc_metrics.csv`](results/roc_auc_metrics.csv):
+![Ensemble ROC](results/figures/roc_curves/roc_ensemble_2023_benchmark.png)
 
-| Model Architecture | Evaluation Set | AUC: Home Win (`H`) | AUC: Draw (`D`) | AUC: Away Win (`A`) | Macro-Avg AUC | Micro-Avg AUC |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Soft-Voting Ensemble (Holdout)** | **2024–2026 Holdout** | **0.7313** | **0.5739** | **0.7399** | **0.6819** | **0.7118** |
-| **Soft-Voting Ensemble (2023)** | **2023 Benchmark Test** | **0.7159** | **0.5650** | **0.7169** | **0.6663** | **0.7087** |
-| **Logistic Regression** | 2023 Benchmark Test | 0.7160 | 0.5696 | 0.7166 | 0.6678 | 0.7084 |
-| **Extra Trees** | 2023 Benchmark Test | 0.7165 | 0.5635 | 0.7169 | 0.6660 | 0.7087 |
-| **XGBoost** | 2023 Benchmark Test | 0.7137 | 0.5688 | 0.7159 | 0.6665 | 0.7068 |
-| **HistGradientBoosting** | 2023 Benchmark Test | 0.7131 | 0.5645 | 0.7152 | 0.6647 | 0.7067 |
-| **Random Forest** | 2023 Benchmark Test | 0.7148 | 0.5598 | 0.7144 | 0.6634 | 0.7066 |
-| **Multi-Layer Perceptron (MLP)** | 2023 Benchmark Test | 0.7124 | 0.5611 | 0.7121 | 0.6623 | 0.7034 |
-| **SMOTE Soft-Voting Ensemble** | 2023 Benchmark Test | 0.7168 | 0.5625 | 0.7163 | 0.6656 | 0.6952 |
+![Holdout ROC](results/figures/roc_curves/roc_ensemble_holdout.png)
 
----
+![Model ROC comparison](results/figures/roc_curves/roc_multimodel_comparison.png)
 
-### B. Diagnostic Findings & Clinical Interpretations
+![SMOTE ROC comparison](results/figures/roc_curves/roc_smote_vs_baseline.png)
 
-1. **Decisive Match Separation ($\text{AUC} \ge 0.716 - 0.740$)**:
-   - For decisive outcomes (`Home Win` and `Away Win`), models demonstrate strong discriminative separation, achieving **AUCs between 0.716 and 0.740**.
-   - Market implied probabilities combined with rolling opponent-adjusted goal differentials provide reliable gradient separation for non-draw outcomes.
+All ROC curves use the saved probabilities from the run that produced the benchmark table.
 
-2. **The "Draw" Information-Theoretic Ceiling ($\text{AUC} \approx 0.565 - 0.574$)**:
-   - The Draw outcome (`D`) exhibits an AUC of **~0.565 to 0.574** across all architectures.
-   - This empirically confirms the fundamental Bayes error rate in football modeling: pre-match statistical indicators for low-scoring decisive games (1–0, 0–1) and draws (0–0, 1–1) overlap heavily, creating a natural information ceiling in pre-match tabular spaces.
+## Feature importance
 
-3. **Multi-Year Holdout Generalization**:
-   - When transitioning from the 2023 benchmark set to the unseen 2024–2026 holdout set, the Ensemble's Micro AUC increases from **0.7087 to 0.7118** and Macro AUC from **0.6663 to 0.6819**.
-   - This validates that the probability calibration and rank-ordering maintain zero temporal degradation over three successive seasons.
+| Rank | Feature | XGBoost importance | RF impurity importance |
+| --- | --- | --- | --- |
+| 1 | NormProbHome | 0.2335 | 0.0805 |
+| 2 | OddsRatio_H_A | 0.1197 | 0.0800 |
+| 3 | X2Odd | 0.0793 | 0.0791 |
+| 4 | NormProbAway | 0.0621 | 0.0672 |
+| 5 | 1XOdd | 0.0536 | 0.0789 |
+| 6 | NormProbDraw | 0.0314 | 0.0266 |
+| 7 | NormHome_x_NormDraw | 0.0210 | 0.0376 |
+| 8 | 12Odd | 0.0192 | 0.0179 |
+| 9 | MarketHandiSize | 0.0121 | 0.0300 |
+| 10 | CongestedHome | 0.0103 | 0.0006 |
+| 11 | OddsSpreadAway | 0.0100 | 0.0128 |
+| 12 | EloDiff_x_ImpliedOver25 | 0.0097 | 0.0340 |
+| 13 | OddsSpreadHome | 0.0095 | 0.0153 |
+| 14 | EloAdvantage | 0.0095 | 0.0397 |
+| 15 | MarketHandiDiscrepancy | 0.0093 | 0.0208 |
 
-4. **SMOTE Class Balancing Impact on Discrimination**:
-   - Training with SMOTE synthetic samples shifts decision thresholds and enhances Draw recall (jumping from 0.62% to 11.02%–24.32%), while preserving overall ranking capability (**Macro AUC = 0.6656** vs 0.6663 baseline).
+![XGBoost importance](results/figures/feature_importance/xgboost_top15.png)
 
----
+![Random Forest importance](results/figures/feature_importance/randomforest_top15.png)
 
-### C. Generated ROC Visualizations
+Importances describe these fitted models, not causal effects. Correlated market features can share importance; RF values in the table are aligned to the XGBoost-ranked rows, while its figure uses RF's own ranking.
 
-All ROC plots are saved at 200 DPI in `results/figures/roc_curves/`:
-- **Main Ensemble ROC (2023 Test)**: `results/figures/roc_curves/roc_ensemble_2023_benchmark.png`
-- **Ensemble Holdout ROC (2024–2026)**: `results/figures/roc_curves/roc_ensemble_holdout_2024_2026.png`
-- **Multi-Model Macro Comparison**: `results/figures/roc_curves/roc_multimodel_comparison.png`
-- **SMOTE vs Baseline Comparison**: `results/figures/roc_curves/roc_smote_vs_baseline.png`
+## Error slices (same five-model ensemble)
 
----
+| Division | Matches | Accuracy |
+| --- | --- | --- |
+| D1 | 314 | 53.82% |
+| E0 | 412 | 57.77% |
+| F1 | 373 | 52.28% |
+| I1 | 410 | 53.41% |
+| SP1 | 410 | 53.66% |
 
-## 11. Quickstart & Reproducibility
+| Empirical |Elo difference| interval | Matches | Accuracy |
+| --- | --- | --- |
+| 0.04 to 48.82 | 480 | 46.04% |
+| 49.16 to 105.28 | 480 | 52.71% |
+| 105.31 to 175 | 479 | 54.91% |
+| 175.12 to 467.21 | 480 | 63.33% |
+
+The Elo intervals above are empirical quartiles calculated from the 2023 fixtures. They replace the former incorrect fixed-range labels. Small slice differences require uncertainty analysis before strong conclusions.
+
+## Reproduce or inspect
+
+Use Python 3.12 and a clean environment:
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Run the complete automated experiment pipeline
+python -m venv .venv
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -r requirements-reproducible.txt
+# Place the verified input at data/raw/Matches.csv, then run:
 python src/run_pipeline.py
-
-# 3. Run SMOTE class balancing pipeline
-python src/run_smote_experiments.py
-
-# 4. Generate One-vs-Rest ROC curves and AUC metrics
-python src/plot_roc_curves.py
-
-# 5. Generate feature importance plots
-python src/plot_feature_importance.py
-
-# 6. Run slice-based error analysis breakdown
-python src/error_analysis.py
-
-# 7. Open and explore the interactive notebook
-jupyter notebook notebooks/Dataset1_Predictor.ipynb
+python -m unittest discover -s tests -v
 ```
+
+One command trains all baseline/progression/SMOTE models, exports predictions, and regenerates all tables, figures, README, research results, and the notebook. The legacy SMOTE entry point now invokes the same complete run. Diagnostic scripts only read saved outputs, avoiding a second model definition. Small numerical changes across operating systems or numerical libraries remain possible; compare the manifest and input hash before attributing differences to models.
+
+Key outputs:
+
+- `results/experiment_results.csv`: full precision metrics with sample counts and dates.
+- `results/predictions.npz`: actual labels, decisions, and H/D/A probabilities for every experiment; inspect using `numpy.load(..., allow_pickle=False)`.
+- `results/error_analysis_test2023.csv` and `results/predictions_holdout.csv`: per-fixture baseline ensemble predictions, probabilities, and actual classes.
+- `results/run_manifest.json`: input SHA-256, package versions, split counts/dates, features, ensemble weights, and source hashes.
+- `results/artifact_hashes.json`: hashes of the generated result files.
+- `notebooks/Dataset1_Predictor.ipynb`: exploration of these exact saved outputs; no independent fitting.
+- `RESEARCH_PAPER.md`: regenerated technical report using the same result tables.
+
+Generated numeric documentation comes from `src/refresh_results.py`; edit its template instead of hand-copying results. The raw and processed input datasets remain excluded by `.gitignore`.
+
+## What was corrected
+
+- README tables and figures now derive from one recorded run, replacing mixed historical summaries.
+- Ordinary and balanced logistic regression have separate storage keys and confusion matrices.
+- Error analysis, ROC curves, and benchmarks use the same five-model ensemble and saved probabilities.
+- Holdout dates/counts reflect the available data instead of an unsupported 2026 extension.
+- Old figures from superseded E8/three-model runs are removed rather than mixed with regenerated figures.
+- Unsupported claims of a universal 54–56% ceiling, guaranteed zero degradation, and proven probability calibration are removed.
+
+The former research write-up contained results from multiple runs and unsupported literature comparisons. Its empirical report is regenerated here; the previous text remains available in Git history. This correction does not certify the accuracy of the earlier external literature claims or update separate PDF/PPT files outside this repository.

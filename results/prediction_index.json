@@ -1,0 +1,167 @@
+{
+  "E0_Baseline_logistic_regression": {
+    "figure": "E0_Baseline_logistic_regression.png",
+    "model": "logistic_regression",
+    "split": "2023 Benchmark Test"
+  },
+  "E1_Elo_logistic_regression": {
+    "figure": "E1_Elo_logistic_regression.png",
+    "model": "logistic_regression",
+    "split": "2023 Benchmark Test"
+  },
+  "E2_Form_logistic_regression": {
+    "figure": "E2_Form_logistic_regression.png",
+    "model": "logistic_regression",
+    "split": "2023 Benchmark Test"
+  },
+  "E3_Goals_xgboost": {
+    "figure": "E3_Goals_xgboost.png",
+    "model": "xgboost",
+    "split": "2023 Benchmark Test"
+  },
+  "E4_Venue_xgboost": {
+    "figure": "E4_Venue_xgboost.png",
+    "model": "xgboost",
+    "split": "2023 Benchmark Test"
+  },
+  "E5_MatchStats_xgboost": {
+    "figure": "E5_MatchStats_xgboost.png",
+    "model": "xgboost",
+    "split": "2023 Benchmark Test"
+  },
+  "E6_Odds_xgboost": {
+    "figure": "E6_Odds_xgboost.png",
+    "model": "xgboost",
+    "split": "2023 Benchmark Test"
+  },
+  "E7_Selected_xgboost": {
+    "figure": "E7_Selected_xgboost.png",
+    "model": "xgboost",
+    "split": "2023 Benchmark Test"
+  },
+  "E8_Paper_Advanced_xgboost": {
+    "figure": "E8_Paper_Advanced_xgboost.png",
+    "model": "xgboost",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_Expanded_Market_Fatigue_extra_trees": {
+    "figure": "E9_Expanded_Market_Fatigue_extra_trees.png",
+    "model": "extra_trees",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_Logistic Regression": {
+    "figure": "E9_logistic_regression.png",
+    "model": "Logistic Regression",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_Balanced Logistic Regression": {
+    "figure": "E9_balanced_logistic_regression.png",
+    "model": "Balanced Logistic Regression",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_Random Forest": {
+    "figure": "E9_random_forest.png",
+    "model": "Random Forest",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_Extra Trees": {
+    "figure": "E9_extra_trees.png",
+    "model": "Extra Trees",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_HistGradientBoosting": {
+    "figure": "E9_hist_gbm.png",
+    "model": "HistGradientBoosting",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_XGBoost": {
+    "figure": "E9_xgboost.png",
+    "model": "XGBoost",
+    "split": "2023 Benchmark Test"
+  },
+  "E9_Multi-Layer Perceptron (MLP)": {
+    "figure": "E9_mlp.png",
+    "model": "Multi-Layer Perceptron (MLP)",
+    "split": "2023 Benchmark Test"
+  },
+  "Draw_Calib_XGB_mult_1.00": {
+    "figure": "Draw_Calib_mult_1.00.png",
+    "model": "XGBoost (draw multiplier 1.00)",
+    "split": "2023 Benchmark Test"
+  },
+  "Draw_Calib_XGB_mult_1.15": {
+    "figure": "Draw_Calib_mult_1.15.png",
+    "model": "XGBoost (draw multiplier 1.15)",
+    "split": "2023 Benchmark Test"
+  },
+  "Draw_Calib_XGB_mult_1.25": {
+    "figure": "Draw_Calib_mult_1.25.png",
+    "model": "XGBoost (draw multiplier 1.25)",
+    "split": "2023 Benchmark Test"
+  },
+  "Draw_Calib_XGB_mult_1.35": {
+    "figure": "Draw_Calib_mult_1.35.png",
+    "model": "XGBoost (draw multiplier 1.35)",
+    "split": "2023 Benchmark Test"
+  },
+  "Draw_Calib_XGB_mult_1.50": {
+    "figure": "Draw_Calib_mult_1.50.png",
+    "model": "XGBoost (draw multiplier 1.50)",
+    "split": "2023 Benchmark Test"
+  },
+  "Ensemble_5Models_E9": {
+    "figure": "Ensemble_5Models_E9.png",
+    "model": "Five-model ensemble",
+    "split": "2023 Benchmark Test"
+  },
+  "Ensemble_5Models_DrawCalibrated": {
+    "figure": "Ensemble_5Models_Calibrated.png",
+    "model": "Ensemble (draw multiplier 1.20)",
+    "split": "2023 Benchmark Test"
+  },
+  "Holdout_Ensemble": {
+    "figure": "Holdout_Ensemble.png",
+    "model": "Five-model ensemble",
+    "split": "2024-01-01 to 2025-05-25 Holdout"
+  },
+  "SMOTE_logistic_regression": {
+    "figure": "SMOTE_logistic_regression.png",
+    "model": "Logistic Regression (SMOTE)",
+    "split": "2023 Benchmark Test"
+  },
+  "SMOTE_random_forest": {
+    "figure": "SMOTE_random_forest.png",
+    "model": "Random Forest (SMOTE)",
+    "split": "2023 Benchmark Test"
+  },
+  "SMOTE_extra_trees": {
+    "figure": "SMOTE_extra_trees.png",
+    "model": "Extra Trees (SMOTE)",
+    "split": "2023 Benchmark Test"
+  },
+  "SMOTE_hist_gbm": {
+    "figure": "SMOTE_hist_gbm.png",
+    "model": "HistGradientBoosting (SMOTE)",
+    "split": "2023 Benchmark Test"
+  },
+  "SMOTE_xgboost": {
+    "figure": "SMOTE_xgboost.png",
+    "model": "XGBoost (SMOTE)",
+    "split": "2023 Benchmark Test"
+  },
+  "SMOTE_mlp": {
+    "figure": "SMOTE_mlp.png",
+    "model": "Multi-Layer Perceptron (MLP) (SMOTE)",
+    "split": "2023 Benchmark Test"
+  },
+  "SMOTE_Ensemble_5Models_E9": {
+    "figure": "SMOTE_Ensemble_5Models_E9.png",
+    "model": "Five-model ensemble (SMOTE)",
+    "split": "2023 Benchmark Test"
+  },
+  "SMOTE_Holdout_Ensemble": {
+    "figure": "SMOTE_Holdout_Ensemble.png",
+    "model": "Five-model ensemble (SMOTE)",
+    "split": "2024-01-01 to 2025-05-25 Holdout"
+  }
+}
