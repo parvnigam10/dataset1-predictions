@@ -131,13 +131,13 @@ Evaluated on the standardized **2023 Benchmark Test Set (1,919 matches)**:
 | **E0** | Baseline | Logistic Regression | 5 | 46.12% | 0.2104 | 0.00% | Trivial majority baseline (predicts all Home) |
 | **E1** | + Elo Ratings | Logistic Regression | 11 | 53.10% | 0.3842 | 0.00% | **+6.98% leap**: Team quality separation |
 | **E2** | + Recent Form | Logistic Regression | 20 | 53.15% | 0.3845 | 0.00% | Form momentum adds modest short-term signal |
-| **E3** | + Historical Goals | XGBoost | 35 | 53.47% | 0.3877 | 0.21% | Attack vs defence scoring differentials |
-| **E4** | + Venue History | XGBoost | 44 | 53.31% | 0.3884 | 0.42% | Home-only vs away-only win rates |
-| **E5** | + Match Stats | XGBoost | 63 | 53.10% | 0.3893 | 0.42% | Rolling shots, corners, cards & dominance |
-| **E6** | + Betting Odds | XGBoost | 71 | **54.14%** | **0.4125** | 2.08% | Market consensus lifts accuracy to 54.14% |
-| **E7** | Selected Features | XGBoost | 28 | **53.73%** | **0.4066** | 1.46% | Non-collinear compact feature set |
-| **E8** | Research Paper Advanced | XGBoost | 39 | **53.36%** | **0.4021** | 1.46% | Table 7 & opponent-adjusted set |
-| **E9** | Expanded Market & Fatigue | Extra Trees | 56 | **54.46%** | **0.4002** | 0.00% | Asian handicap, totals, rest days & H2H |
+| **E3** | + Historical Goals | XGBoost | 35 | 53.36% | 0.3866 | 0.21% | Attack vs defence scoring differentials |
+| **E4** | + Venue History | XGBoost | 44 | 53.36% | 0.3893 | 0.42% | Home-only vs away-only win rates |
+| **E5** | + Match Stats | XGBoost | 63 | 53.05% | 0.3884 | 0.42% | Rolling shots, corners, cards & dominance |
+| **E6** | + Betting Odds | XGBoost | 71 | **54.14%** | **0.4104** | 1.87% | Market consensus lifts accuracy to 54.14% |
+| **E7** | Selected Features | XGBoost | 28 | **53.57%** | **0.4051** | 1.66% | Non-collinear compact feature set |
+| **E8** | Research Paper Advanced | XGBoost | 39 | **54.04%** | **0.4115** | 2.08% | Table 7 & opponent-adjusted set |
+| **E9** | Expanded Market & Fatigue | Extra Trees | 56 | **54.19%** | **0.3970** | 0.00% | Asian handicap, totals, rest days & H2H |
 
 ---
 
@@ -147,13 +147,13 @@ Tested on the comprehensive `E9_Expanded_Market_Fatigue` feature set (56 feature
 
 | Model | Accuracy | Macro F1 | Home Recall | Draw Recall | Away Recall |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Extra Trees** | **54.46%** | 0.4002 | 84.18% | 0.00% | 54.97% |
-| **Random Forest** | **54.30%** | 0.4040 | 81.35% | 0.83% | 57.69% |
-| **XGBoost** | **54.04%** | **0.4122** | 80.90% | 2.08% | 55.70% |
-| **Logistic Regression** | **53.93%** | 0.4040 | 79.77% | 0.83% | 58.77% |
-| **HistGradientBoosting** | **53.36%** | 0.4039 | 78.42% | 1.46% | 57.87% |
-| **Multi-Layer Perceptron (MLP)** | **53.05%** | 0.3995 | 80.23% | 1.66% | 54.07% |
-| **Balanced Logistic Reg.** | 49.82% | **0.4636** | 54.58% | **23.28%** | 65.10% |
+| **Multi-Layer Perceptron (MLP)** | **54.19%** | **0.4142** | 81.02% | 2.70% | 56.06% |
+| **Extra Trees** | **54.19%** | 0.3970 | 83.16% | 0.00% | 54.97% |
+| **Random Forest** | **54.04%** | 0.4030 | 81.24% | 0.83% | 56.78% |
+| **Logistic Regression** | **53.88%** | 0.4035 | 80.00% | 0.83% | 58.23% |
+| **HistGradientBoosting** | **53.83%** | 0.4107 | 80.11% | 2.29% | 56.60% |
+| **XGBoost** | **53.78%** | 0.4088 | 80.11% | 1.87% | 56.78% |
+| **Balanced Logistic Reg.** | 49.56% | **0.4609** | 54.24% | **23.28%** | 64.92% |
 
 ---
 
@@ -163,21 +163,21 @@ Ranked across all 56 features in the expanded feature set:
 
 | Rank | Feature | XGBoost Weight | RandomForest Gini | Domain Interpretation |
 | :---: | :--- | :---: | :---: | :--- |
-| **1** | `NormProbHome` | 0.2233 | 0.0805 | Normalized market probability for home win |
-| **2** | `OddsRatio_H_A` | 0.1068 | 0.0800 | Market price ratio between away and home odds |
-| **3** | `NormProbAway` | 0.1038 | 0.0672 | Normalized market probability for away win |
-| **4** | `X2Odd` | **0.0600** | 0.0791 | **Table 7 Double Chance (Away or Draw)** |
-| **5** | `1XOdd` | **0.0433** | 0.0789 | **Table 7 Double Chance (Home or Draw)** |
-| **6** | `NormProbDraw` | 0.0297 | 0.0266 | Market draw expectation |
-| **7** | `NormHome_x_NormDraw` | **0.0246** | 0.0376 | Non-linear interaction between home & draw |
-| **8** | `12Odd` | **0.0189** | 0.0179 | **Table 7 Double Chance (Either Team Win)** |
-| **9** | `MarketHandiSize` | **0.0172** | 0.0300 | **Asian Handicap expected goal margin** |
+| **1** | `NormProbHome` | 0.2264 | 0.0805 | Normalized market probability for home win |
+| **2** | `NormProbAway` | 0.1294 | 0.0672 | Normalized market probability for away win |
+| **3** | `OddsRatio_H_A` | 0.1073 | 0.0800 | Market price ratio between away and home odds |
+| **4** | `X2Odd` | **0.0602** | 0.0791 | **Table 7 Double Chance (Away or Draw)** |
+| **5** | `1XOdd` | **0.0463** | 0.0789 | **Table 7 Double Chance (Home or Draw)** |
+| **6** | `NormProbDraw` | 0.0305 | 0.0266 | Market draw expectation |
+| **7** | `NormHome_x_NormDraw` | **0.0224** | 0.0376 | Non-linear interaction between home & draw |
+| **8** | `12Odd` | **0.0179** | 0.0179 | **Table 7 Double Chance (Either Team Win)** |
+| **9** | `League_F1` | 0.0101 | 0.0008 | League indicator: France Ligue 1 |
 | **10** | `OddsSpreadAway` | **0.0100** | 0.0128 | Best market price variance for away team |
-| **11** | `EloAdvantage` | 0.0099 | 0.0397 | Normalized team quality gap ($\text{EloDiff} / \text{EloTotal}$) |
-| **12** | `MarketHandiDiscrepancy` | **0.0099** | 0.0208 | Divergence between market handicap & Elo |
-| **13** | `GameDominanceIndex` | **0.0096** | 0.0148 | **Table 7 Combined Corners & Shots Dominance** |
-| **14** | `EloDiff_x_ImpliedOver25` | **0.0096** | 0.0340 | Quality disparity conditioned on total goals |
-| **15** | `EloDiff` | 0.0093 | 0.0269 | Raw Elo rating differential |
+| **11** | `DrawLikelihood` | **0.0098** | 0.0183 | Derived draw likelihood metric |
+| **12** | `EloDiff_x_ImpliedOver25` | **0.0097** | 0.0340 | Quality disparity conditioned on total goals |
+| **13** | `MarketHandiSize` | **0.0094** | 0.0300 | **Asian Handicap expected goal margin** |
+| **14** | `EloWinProbHome` | 0.0092 | 0.0308 | Pre-match Elo theoretical home win probability |
+| **15** | `GameDominanceIndex` | **0.0091** | 0.0148 | **Table 7 Combined Corners & Shots Dominance** |
 
 ---
 
@@ -187,21 +187,21 @@ In 3-way match prediction, standard $\text{argmax}$ predictions virtually ignore
 
 | Multiplier ($M$) | Accuracy | Macro F1 | Home Recall | Draw Recall | Away Recall |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| **1.00 (Default)** | 54.04% | 0.4122 | 80.90% | 2.08% | 55.70% |
-| **1.15** | 53.67% | 0.4284 | 78.42% | 6.44% | 53.89% |
-| **1.25** | 52.27% | 0.4439 | 74.58% | 12.89% | 50.09% |
-| **1.35** | 50.96% | 0.4548 | 70.06% | 20.79% | 46.65% |
-| **1.50** | 49.77% | **0.4686** | 62.71% | **34.93%** | 41.95% |
+| **1.00 (Default)** | 53.78% | 0.4088 | 80.11% | 1.87% | 56.78% |
+| **1.15** | 52.89% | 0.4239 | 77.63% | 6.03% | 54.07% |
+| **1.25** | 52.01% | 0.4364 | 75.03% | 11.02% | 50.81% |
+| **1.35** | 51.43% | 0.4582 | 71.07% | 21.41% | 46.11% |
+| **1.50** | 49.35% | **0.4643** | 62.37% | **34.51%** | 41.41% |
 
 ---
 
 ## 8. Ensemble & Multi-Year Holdout Generalization
 
 1. **5-Model Soft-Voting Ensemble (ET + XGB + HGB + RF + LR)**:
-   - **2023 Benchmark Test Set**: **54.35% Accuracy**, Macro F1: **0.4090**, Home Recall: **80.68%**, Away Recall: **58.41%**.
-   - **Calibrated Ensemble ($M=1.20$)**: **52.37% Accuracy**, Draw Recall: **9.98%**, Macro F1: **0.4358**.
+   - **2023 Benchmark Test Set**: **54.30% Accuracy**, Macro F1: **0.4054**, Home Recall: **80.79%**, Away Recall: **58.59%**.
+   - **Calibrated Ensemble ($M=1.20$)**: **52.11% Accuracy**, Draw Recall: **8.94%**, Macro F1: **0.4305**.
 2. **Unseen Future Holdout (2024–2026, 4,502 matches)**:
-   - **Overall 3-Way Accuracy**: **53.53%**, Home Recall: **82.54%**, Away Recall: **56.96%**.
+   - **Overall 3-Way Accuracy**: **53.58%**, Home Recall: **82.70%**, Away Recall: **56.82%**.
    - Validates zero temporal degradation across three consecutive unseen seasons.
 
 ---
@@ -219,33 +219,52 @@ In real-world quantitative sports syndicates, models do not bet on every match. 
 #### 2023 Benchmark Test Set (1,919 matches):
 | Confidence Threshold | Matches Selected | Season Coverage | Empirical Accuracy |
 | :---: | :---: | :---: | :---: |
-| $\ge 0.40$ | 1,516 | 79.0% | 57.45% |
-| $\ge 0.45$ | 1,208 | 63.0% | 60.51% |
-| $\ge 0.50$ | 937 | 48.8% | 63.29% |
-| $\ge 0.55$ | 757 | 39.5% | 65.13% |
-| **$\ge 0.60$** | **472** | **24.6%** | **71.61%** |
-| **$\ge 0.65$** | **356** | **18.6%** | **75.28%** |
-| **$\ge 0.70$** | **224** | **11.7%** | **80.80%** |
+| $\ge 0.40$ | 1,515 | 78.95% | 57.36% |
+| $\ge 0.45$ | 1,211 | 63.11% | 60.28% |
+| $\ge 0.50$ | 935 | 48.72% | 62.99% |
+| $\ge 0.55$ | 752 | 39.19% | 65.43% |
+| **$\ge 0.60$** | **470** | **24.49%** | **71.91%** |
+| **$\ge 0.65$** | **354** | **18.45%** | **75.42%** |
+| **$\ge 0.70$** | **224** | **11.67%** | **81.25%** |
 
 #### 2024–2026 Unseen Holdout Set (4,502 matches):
 | Confidence Threshold | Matches Selected | Season Coverage | Empirical Accuracy |
 | :---: | :---: | :---: | :---: |
-| $\ge 0.40$ | 3,630 | 80.6% | 57.66% |
-| $\ge 0.45$ | 2,852 | 63.4% | 61.29% |
-| $\ge 0.50$ | 2,198 | 48.8% | 64.83% |
-| $\ge 0.55$ | 1,711 | 38.0% | 67.39% |
-| **$\ge 0.60$** | **1,162** | **25.8%** | **72.46%** |
-| **$\ge 0.65$** | **889** | **19.8%** | **76.60%** |
-| **$\ge 0.70$** | **566** | **12.6%** | **78.27%** |
+| $\ge 0.40$ | 3,634 | 80.72% | 57.68% |
+| $\ge 0.45$ | 2,858 | 63.48% | 61.09% |
+| $\ge 0.50$ | 2,200 | 48.87% | 64.86% |
+| $\ge 0.55$ | 1,707 | 37.92% | 67.25% |
+| **$\ge 0.60$** | **1,159** | **25.74%** | **72.56%** |
+| **$\ge 0.65$** | **890** | **19.77%** | **76.40%** |
+| **$\ge 0.70$** | **563** | **12.51%** | **78.51%** |
 
 ### C. The Double Chance Framing (1X, X2, 12)
 Under the Double Chance formulation (predicting whether Home Win/Draw, Away Win/Draw, or Either Team Win occurs):
-- **2023 Benchmark Test Set**: **80.56% Accuracy** (1,546 / 1,919 matches).
-- **2024–2026 Holdout Set**: **79.52% Accuracy** (3,580 / 4,502 matches).
+- **2023 Benchmark Test Set**: **80.41% Accuracy** (1,543 / 1,919 matches).
+- **2024–2026 Holdout Set**: **79.34% Accuracy** (3,572 / 4,502 matches).
 
 ---
 
-## 10. Receiver Operating Characteristic (ROC) & AUC Analysis
+## 10. SMOTE Class Balancing Analysis
+
+To mitigate the systemic underprediction of draws caused by natural class imbalance, Synthetic Minority Over-sampling Technique (SMOTE) was applied to the training set (expanding training instances from 39,138 to 53,895 so each class has 17,965 samples), while keeping test sets strictly untouched.
+
+Extracted directly from [`results/smote_vs_baseline_comparison.csv`](results/smote_vs_baseline_comparison.csv):
+
+| Model | Accuracy (Orig) | Accuracy (SMOTE) | Acc Δ | Macro F1 (Orig) | Macro F1 (SMOTE) | F1 Δ | Draw Recall (Orig) | Draw Recall (SMOTE) | Draw Recall Δ |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **XGBoost** | 53.78% | **53.67%** | *-0.11%* | 0.4088 | **0.4202** | **+0.0114** | 1.87% | **3.33%** | **+1.46%** |
+| **HistGradientBoosting** | 53.83% | **52.74%** | *-1.09%* | 0.4107 | **0.4226** | **+0.0119** | 2.29% | **5.41%** | **+3.12%** |
+| **5-Model Ensemble (Holdout)** | 53.58% | **51.98%** | *-1.60%* | 0.4063 | **0.4590** | **+0.0527** | 0.78% | **14.30%** | **+13.52%** |
+| **5-Model Ensemble (2023 Test)**| 54.30% | **52.01%** | *-2.29%* | 0.4054 | **0.4445** | **+0.0391** | 0.62% | **11.02%** | **+10.40%** |
+| **Random Forest** | 54.04% | **51.64%** | *-2.40%* | 0.4030 | **0.4543** | **+0.0513** | 0.83% | **15.18%** | **+14.35%** |
+| **Extra Trees** | 54.19% | **50.55%** | *-3.64%* | 0.3970 | **0.4698** | **+0.0728** | 0.00% | **24.32%** | **+24.32%** |
+| **Logistic Regression** | 53.88% | **49.40%** | *-4.48%* | 0.4035 | **0.4532** | **+0.0497** | 0.83% | **19.96%** | **+19.13%** |
+| **MLP (Neural Net)** | 54.19% | **49.61%** | *-4.58%* | 0.4142 | **0.4538** | **+0.0396** | 2.70% | **23.08%** | **+20.38%** |
+
+---
+
+## 11. Receiver Operating Characteristic (ROC) & AUC Analysis
 
 To evaluate the continuous ranking quality and discriminative capability across all three possible outcomes (`H = Home Win`, `D = Draw`, `A = Away Win`), One-vs-Rest (OvR) Receiver Operating Characteristic (ROC) curves and Area Under the Curve (AUC) scores were computed across all model architectures on both the **2023 Benchmark Test Set (1,919 matches)** and the **2024–2026 Holdout Set (4,502 matches)**.
 
@@ -296,7 +315,7 @@ All ROC plots are saved at 200 DPI in `results/figures/roc_curves/`:
 
 ---
 
-## 11. Quickstart & Reproducibility
+## 12. Quickstart & Reproducibility
 
 ```bash
 # 1. Install dependencies
